@@ -33,89 +33,72 @@ export default function AdminKameraPage() {
   const [stok, setStok] = useState("1");
   const [aktif, setAktif] = useState(true);
 
-  const [gambarFile, setGambarFile] =
-  useState<File | null>(null);
-
-const [gambarPreview, setGambarPreview] =
-  useState<string | null>(null);
+  const [gambarFile, setGambarFile] = useState<File | null>(null);
+  const [gambarPreview, setGambarPreview] = useState<string | null>(null);
 
   const formRef = useRef<HTMLDivElement>(null);
 
   async function ambilKamera() {
-  setLoading(true);
+    setLoading(true);
 
-  try {
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-    if (sessionError || !session) {
-      alert("Kamu harus login sebagai admin.");
-      setLoading(false);
-      return;
-    }
+      if (sessionError || !session) {
+        alert("Kamu harus login sebagai admin.");
+        setLoading(false);
+        return;
+      }
 
-    const response = await fetch(
-      "/api/admin/kamera",
-      {
+      const response = await fetch("/api/admin/kamera", {
         method: "GET",
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
+      });
+
+      const hasil = await response.json();
+
+      if (!response.ok) {
+        console.error("Gagal mengambil kamera:", hasil);
+
+        alert(hasil.error || "Gagal mengambil data kamera.");
+
+        setLoading(false);
+        return;
       }
-    );
 
-    const hasil = await response.json();
+      setKamera(hasil.data || []);
+    } catch (error) {
+      console.error("Error mengambil kamera:", error);
 
-    if (!response.ok) {
-      console.error(
-        "Gagal mengambil kamera:",
-        hasil
-      );
-
-      alert(
-        hasil.error ||
-          "Gagal mengambil data kamera."
-      );
-
+      alert("Terjadi kesalahan saat mengambil data kamera.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setKamera(hasil.data || []);
-  } catch (error) {
-    console.error(
-      "Error mengambil kamera:",
-      error
-    );
-
-    alert(
-      "Terjadi kesalahan saat mengambil data kamera."
-    );
-  } finally {
-    setLoading(false);
   }
-}
 
   useEffect(() => {
-  ambilKamera();
-}, [router]);
+    ambilKamera();
+  }, [router]);
 
   function resetForm() {
-  setNama("");
-  setBrand("");
-  setDeskripsi("");
-  setHarga("50000");
-  setStok("1");
-  setAktif(true);
+    setNama("");
+    setBrand("");
+    setDeskripsi("");
+    setHarga("50000");
+    setStok("1");
+    setAktif(true);
 
-  setGambarFile(null);
-  setGambarPreview(null);
+    setGambarFile(null);
+    setGambarPreview(null);
 
-  setModeEdit(false);
-  setKameraEditId(null);
-}
+    setModeEdit(false);
+    setKameraEditId(null);
+  }
 
   function bukaFormTambah() {
     resetForm();
@@ -141,7 +124,7 @@ const [gambarPreview, setGambarPreview] =
     setAktif(item.aktif);
 
     setGambarFile(null);
-setGambarPreview(item.gambar_url);
+    setGambarPreview(item.gambar_url);
 
     setTampilForm(true);
 
@@ -159,94 +142,84 @@ setGambarPreview(item.gambar_url);
   }
 
   async function simpanKamera(e: React.FormEvent) {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!nama.trim() || !brand.trim()) {
-    alert("Nama dan brand kamera wajib diisi.");
-    return;
-  }
-
-  if (Number(harga) < 0 || Number(stok) < 0) {
-    alert("Harga dan stok tidak boleh kurang dari 0.");
-    return;
-  }
-
-  setMenyimpan(true);
-
-  try {
-    // =========================================
-    // AMBIL SESSION ADMIN
-    // =========================================
-
-    const sessionResult =
-      await supabase.auth.getSession();
-
-    const accessToken =
-      sessionResult.data.session?.access_token;
-
-    if (!accessToken) {
-      alert(
-        "Sesi admin tidak ditemukan. Silakan login kembali."
-      );
-
-      setMenyimpan(false);
+    if (!nama.trim() || !brand.trim()) {
+      alert("Nama dan brand kamera wajib diisi.");
       return;
     }
 
-    let kameraId: number | null =
-      kameraEditId;
+    if (Number(harga) < 0 || Number(stok) < 0) {
+      alert("Harga dan stok tidak boleh kurang dari 0.");
+      return;
+    }
 
-    // =========================================
-    // EDIT KAMERA
-    // =========================================
+    setMenyimpan(true);
 
-    if (modeEdit && kameraEditId !== null) {
-      const { error } = await supabase
-        .from("camera")
-        .update({
-          nama: nama.trim(),
-          brand: brand.trim(),
-          deskripsi:
-            deskripsi.trim() || null,
-          harga_per_hari: Number(harga),
-          stok: Number(stok),
-          aktif,
-          updated_at:
-            new Date().toISOString(),
-        })
-        .eq("id", kameraEditId);
+    try {
+      // =========================================
+      // AMBIL SESSION ADMIN
+      // =========================================
 
-      if (error) {
-        console.error(
-          "Gagal mengubah kamera:",
-          error
-        );
+      const sessionResult = await supabase.auth.getSession();
 
+      const accessToken =
+        sessionResult.data.session?.access_token;
+
+      if (!accessToken) {
         alert(
-          "Gagal mengubah kamera.\n\n" +
-            error.message
+          "Sesi admin tidak ditemukan. Silakan login kembali."
         );
 
         setMenyimpan(false);
         return;
       }
-    }
 
-    // =========================================
-    // TAMBAH KAMERA
-    // =========================================
+      let kameraId: number | null = kameraEditId;
 
-    if (!modeEdit) {
-      const { data, error } =
-        await supabase
+      // =========================================
+      // EDIT KAMERA
+      // =========================================
+
+      if (modeEdit && kameraEditId !== null) {
+        const { error } = await supabase
+          .from("camera")
+          .update({
+            nama: nama.trim(),
+            brand: brand.trim(),
+            deskripsi: deskripsi.trim() || null,
+            harga_per_hari: Number(harga),
+            stok: Number(stok),
+            aktif,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", kameraEditId);
+
+        if (error) {
+          console.error("Gagal mengubah kamera:", error);
+
+          alert(
+            "Gagal mengubah kamera.\n\n" +
+              error.message
+          );
+
+          setMenyimpan(false);
+          return;
+        }
+      }
+
+      // =========================================
+      // TAMBAH KAMERA
+      // =========================================
+
+      if (!modeEdit) {
+        const { data, error } = await supabase
           .from("camera")
           .insert({
             nama: nama.trim(),
             brand: brand.trim(),
-            deskripsi:
-              deskripsi.trim() || null,
-            harga_per_hari:
-              Number(harga),
+            deskripsi: deskripsi.trim() || null,
+            harga_per_hari: Number(harga),
             stok: Number(stok),
             gambar_url: null,
             aktif: true,
@@ -254,100 +227,88 @@ setGambarPreview(item.gambar_url);
           .select("id")
           .single();
 
-      if (error || !data) {
-        console.error(
-          "Gagal menambah kamera:",
-          error
-        );
+        if (error || !data) {
+          console.error("Gagal menambah kamera:", error);
 
-        alert(
-          "Gagal menambah kamera.\n\n" +
-            (error?.message ||
-              "Data kamera tidak berhasil dibuat.")
-        );
+          alert(
+            "Gagal menambah kamera.\n\n" +
+              (error?.message ||
+                "Data kamera tidak berhasil dibuat.")
+          );
 
-        setMenyimpan(false);
-        return;
+          setMenyimpan(false);
+          return;
+        }
+
+        kameraId = data.id;
       }
 
-      kameraId = data.id;
-    }
+      // =========================================
+      // UPLOAD GAMBAR JIKA ADA
+      // =========================================
 
-    // =========================================
-    // UPLOAD GAMBAR JIKA ADA
-    // =========================================
+      if (gambarFile && kameraId !== null) {
+        const formData = new FormData();
 
-    if (gambarFile && kameraId !== null) {
-      const formData =
-        new FormData();
+        formData.append("file", gambarFile);
 
-      formData.append(
-        "file",
-        gambarFile
-      );
+        formData.append(
+          "kameraId",
+          String(kameraId)
+        );
 
-      formData.append(
-        "kameraId",
-        String(kameraId)
-      );
-
-      const uploadResponse =
-        await fetch(
+        const uploadResponse = await fetch(
           "/api/admin/kamera/gambar",
           {
             method: "POST",
             headers: {
-              Authorization:
-                `Bearer ${accessToken}`,
+              Authorization: `Bearer ${accessToken}`,
             },
             body: formData,
           }
         );
 
-      const uploadResult =
-        await uploadResponse.json();
+        const uploadResult =
+          await uploadResponse.json();
 
-      if (!uploadResponse.ok) {
-        console.error(
-          "Gagal upload gambar:",
-          uploadResult
-        );
+        if (!uploadResponse.ok) {
+          console.error(
+            "Gagal upload gambar:",
+            uploadResult
+          );
 
-        alert(
-          "Data kamera berhasil disimpan, tetapi gambar gagal diupload.\n\n" +
-            (uploadResult.error ||
-              "Terjadi kesalahan saat upload gambar.")
-        );
+          alert(
+            "Data kamera berhasil disimpan, tetapi gambar gagal diupload.\n\n" +
+              (uploadResult.error ||
+                "Terjadi kesalahan saat upload gambar.")
+          );
+        }
       }
+
+      // =========================================
+      // SELESAI
+      // =========================================
+
+      await ambilKamera();
+
+      alert(
+        modeEdit
+          ? "Data kamera berhasil diubah."
+          : "Kamera berhasil ditambahkan."
+      );
+
+      setMenyimpan(false);
+      tutupForm();
+    } catch (error) {
+      console.error("Error menyimpan kamera:", error);
+
+      alert(
+        "Terjadi kesalahan saat menyimpan kamera."
+      );
+
+      setMenyimpan(false);
     }
-
-    // =========================================
-    // SELESAI
-    // =========================================
-
-    await ambilKamera();
-
-    alert(
-      modeEdit
-        ? "Data kamera berhasil diubah."
-        : "Kamera berhasil ditambahkan."
-    );
-
-    setMenyimpan(false);
-    tutupForm();
-  } catch (error) {
-    console.error(
-      "Error menyimpan kamera:",
-      error
-    );
-
-    alert(
-      "Terjadi kesalahan saat menyimpan kamera."
-    );
-
-    setMenyimpan(false);
   }
-}
 
   async function ubahStatusKamera(item: Camera) {
     const statusBaru = !item.aktif;
@@ -363,34 +324,37 @@ setGambarPreview(item.gambar_url);
     }
 
     const {
-  data: { session },
-  error: sessionError,
-} = await supabase.auth.getSession();
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
 
-if (sessionError || !session) {
-  router.replace("/admin/login");
-  return;
-}
+    if (sessionError || !session) {
+      router.replace("/admin/login");
+      return;
+    }
 
-const response = await fetch(
-  "/api/admin/kamera/status",
-  {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${session.access_token}`,
-    },
-    body: JSON.stringify({
-      id: item.id,
-      aktif: statusBaru,
-    }),
-  }
-);
+    const response = await fetch(
+      "/api/admin/kamera/status",
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          id: item.id,
+          aktif: statusBaru,
+        }),
+      }
+    );
 
     const hasil = await response.json();
 
     if (!response.ok) {
-      console.error("Gagal mengubah status kamera:", hasil);
+      console.error(
+        "Gagal mengubah status kamera:",
+        hasil
+      );
 
       alert(
         "Gagal mengubah status kamera.\n\n" +
@@ -490,7 +454,9 @@ const response = await fetch(
                 <input
                   type="text"
                   value={nama}
-                  onChange={(e) => setNama(e.target.value)}
+                  onChange={(e) =>
+                    setNama(e.target.value)
+                  }
                   placeholder="Contoh: EOS R"
                   className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-white outline-none transition focus:border-yellow-400"
                 />
@@ -505,7 +471,9 @@ const response = await fetch(
                 <input
                   type="text"
                   value={brand}
-                  onChange={(e) => setBrand(e.target.value)}
+                  onChange={(e) =>
+                    setBrand(e.target.value)
+                  }
                   placeholder="Contoh: Canon"
                   className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-white outline-none transition focus:border-yellow-400"
                 />
@@ -521,7 +489,9 @@ const response = await fetch(
                   type="number"
                   min="0"
                   value={harga}
-                  onChange={(e) => setHarga(e.target.value)}
+                  onChange={(e) =>
+                    setHarga(e.target.value)
+                  }
                   className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-white outline-none transition focus:border-yellow-400"
                 />
 
@@ -540,53 +510,56 @@ const response = await fetch(
                   type="number"
                   min="0"
                   value={stok}
-                  onChange={(e) => setStok(e.target.value)}
+                  onChange={(e) =>
+                    setStok(e.target.value)
+                  }
                   className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-white outline-none transition focus:border-yellow-400"
                 />
               </div>
 
               {/* GAMBAR */}
-<div className="md:col-span-2">
-  <label className="mb-2 block text-sm text-gray-300">
-    Gambar Kamera
-  </label>
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm text-gray-300">
+                  Gambar Kamera
+                </label>
 
-  <input
-    type="file"
-    accept="image/jpeg,image/png,image/webp"
-    onChange={(e) => {
-      const file = e.target.files?.[0] || null;
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => {
+                    const file =
+                      e.target.files?.[0] || null;
 
-      setGambarFile(file);
+                    setGambarFile(file);
 
-      if (file) {
-        setGambarPreview(
-          URL.createObjectURL(file)
-        );
-      }
-    }}
-    className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-sm text-gray-300 outline-none file:mr-4 file:rounded-full file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:font-semibold file:text-black hover:file:bg-yellow-300"
-  />
+                    if (file) {
+                      setGambarPreview(
+                        URL.createObjectURL(file)
+                      );
+                    }
+                  }}
+                  className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-sm text-gray-300 outline-none file:mr-4 file:rounded-full file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:font-semibold file:text-black hover:file:bg-yellow-300"
+                />
 
-  <p className="mt-2 text-xs text-gray-500">
-    Format: JPG, PNG, atau WebP. Maksimal 5 MB.
-  </p>
+                <p className="mt-2 text-xs text-gray-500">
+                  Format: JPG, PNG, atau WebP. Maksimal 5 MB.
+                </p>
 
-  {gambarPreview && (
-    <div className="mt-4">
-      <p className="mb-2 text-xs text-gray-500">
-        Preview gambar:
-      </p>
+                {gambarPreview && (
+                  <div className="mt-4">
+                    <p className="mb-2 text-xs text-gray-500">
+                      Preview gambar:
+                    </p>
 
-      <img
-        src={gambarPreview}
-        alt="Preview kamera"
-        className="h-48 w-full rounded-xl border border-gray-800 object-contain bg-black"
-      />
-    </div>
-  )}
-</div>
-              
+                    <img
+                      src={gambarPreview}
+                      alt="Preview kamera"
+                      className="h-48 w-full rounded-xl border border-gray-800 object-contain bg-black"
+                    />
+                  </div>
+                )}
+              </div>
+
               {/* DESKRIPSI */}
               <div className="md:col-span-2">
                 <label className="mb-2 block text-sm text-gray-300">
@@ -595,7 +568,9 @@ const response = await fetch(
 
                 <textarea
                   value={deskripsi}
-                  onChange={(e) => setDeskripsi(e.target.value)}
+                  onChange={(e) =>
+                    setDeskripsi(e.target.value)
+                  }
                   rows={4}
                   placeholder="Masukkan deskripsi atau spesifikasi kamera..."
                   className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-white outline-none transition focus:border-yellow-400"
@@ -672,18 +647,18 @@ const response = await fetch(
             <div className="overflow-x-auto">
               <table className="w-full min-w-[900px]">
                 <thead>
-  <tr className="border-b border-gray-800 text-left text-sm text-gray-400">
-    <th className="px-6 py-4">
-      Gambar
-    </th>
+                  <tr className="border-b border-gray-800 text-left text-sm text-gray-400">
+                    <th className="px-6 py-4">
+                      Gambar
+                    </th>
 
-    <th className="px-6 py-4">
-      Kamera
-    </th>
+                    <th className="px-6 py-4">
+                      Kamera
+                    </th>
 
-    <th className="px-6 py-4">
-      Brand
-    </th>
+                    <th className="px-6 py-4">
+                      Brand
+                    </th>
 
                     <th className="px-6 py-4">
                       Harga
@@ -709,32 +684,22 @@ const response = await fetch(
                       key={item.id}
                       className="border-b border-gray-900 transition hover:bg-gray-900"
                     >
+                      {/* GAMBAR - HANYA SATU */}
                       <td className="px-6 py-5">
-  {item.gambar_url ? (
-    <img
-      src={item.gambar_url}
-      alt={`${item.brand} ${item.nama}`}
-      className="h-20 w-24 rounded-xl border border-gray-800 object-cover"
-    />
-  ) : (
-    <div className="flex h-20 w-24 items-center justify-center rounded-xl border border-gray-800 bg-gray-900 text-xs text-gray-500">
-      Belum ada gambar
-    </div>
-  )}
-</td>
-                      <td className="px-6 py-5">
-  {item.gambar_url ? (
-    <img
-      src={item.gambar_url}
-      alt={`${item.brand} ${item.nama}`}
-      className="h-20 w-24 rounded-xl border border-gray-800 object-cover"
-    />
-  ) : (
-    <div className="flex h-20 w-24 items-center justify-center rounded-xl border border-gray-800 bg-gray-900 text-xs text-gray-500">
-      Belum ada gambar
-    </div>
-  )}
-</td>
+                        {item.gambar_url ? (
+                          <img
+                            src={item.gambar_url}
+                            alt={`${item.brand} ${item.nama}`}
+                            className="h-20 w-24 rounded-xl border border-gray-800 object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-20 w-24 items-center justify-center rounded-xl border border-gray-800 bg-gray-900 text-xs text-gray-500">
+                            Belum ada gambar
+                          </div>
+                        )}
+                      </td>
+
+                      {/* NAMA + DESKRIPSI */}
                       <td className="px-6 py-5">
                         <div className="font-semibold">
                           {item.nama}
@@ -747,10 +712,12 @@ const response = await fetch(
                         )}
                       </td>
 
+                      {/* BRAND */}
                       <td className="px-6 py-5 text-gray-300">
                         {item.brand}
                       </td>
 
+                      {/* HARGA */}
                       <td className="px-6 py-5 text-gray-300">
                         Rp
                         {Number(
@@ -758,6 +725,7 @@ const response = await fetch(
                         ).toLocaleString("id-ID")}
                       </td>
 
+                      {/* STOK */}
                       <td className="px-6 py-5">
                         <span
                           className={
@@ -770,6 +738,7 @@ const response = await fetch(
                         </span>
                       </td>
 
+                      {/* STATUS */}
                       <td className="px-6 py-5">
                         {item.aktif ? (
                           <span className="rounded-full bg-green-400/10 px-3 py-1 text-xs font-semibold text-green-400">
@@ -782,6 +751,7 @@ const response = await fetch(
                         )}
                       </td>
 
+                      {/* AKSI */}
                       <td className="px-6 py-5">
                         <div className="flex justify-end gap-2">
                           <button
