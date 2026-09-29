@@ -103,8 +103,8 @@ useEffect(() => {
     const { data, error } = await supabase
       .from("camera")
       .select(
-        "id, nama, brand, harga_per_hari, stok, aktif"
-      )
+  "id, nama, brand, harga_per_hari, stok, aktif, gambar_url"
+)
       .eq("aktif", true)
       .order("id", { ascending: true });
 
@@ -802,6 +802,18 @@ const response = await fetch(
               <h2 className="text-xl font-bold">
                 Ringkasan Pesanan
               </h2>
+
+              {kameraTerpilih?.gambar_url ? (
+  <img
+    src={kameraTerpilih.gambar_url}
+    alt={`${kameraTerpilih.brand} ${kameraTerpilih.nama}`}
+    className="mt-4 h-40 w-full rounded-xl object-cover"
+  />
+) : (
+  <div className="mt-4 flex h-40 items-center justify-center rounded-xl bg-zinc-800 text-5xl">
+    📷
+  </div>
+)}
 
               <div className="mt-6 space-y-4 text-sm">
 
