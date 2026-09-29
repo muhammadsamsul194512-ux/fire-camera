@@ -1,7 +1,12 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -18,7 +23,7 @@ function getTanggalHariIni() {
   return `${tahun}-${bulan}-${hari}`;
 }
 
-export default function SewaPage() {
+function SewaContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -927,5 +932,17 @@ const response = await fetch(
       </footer>
 
     </main>
+  );
+}
+
+export default function SewaPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-zinc-950" />
+      }
+    >
+      <SewaContent />
+    </Suspense>
   );
 }

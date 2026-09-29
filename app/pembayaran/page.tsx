@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 type PaymentData = {
@@ -12,7 +12,7 @@ type PaymentData = {
   bukti_pembayaran_url: string | null;
 };
 
-export default function PembayaranPage() {
+function PembayaranContent() {
   const searchParams = useSearchParams();
 
   const nomorPesanan = searchParams.get("pesanan") || "-";
@@ -610,5 +610,12 @@ export default function PembayaranPage() {
         </div>
       </footer>
     </main>
+  );
+}
+export default function PembayaranPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-zinc-950" />}>
+      <PembayaranContent />
+    </Suspense>
   );
 }
