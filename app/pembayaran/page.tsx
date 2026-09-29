@@ -166,20 +166,20 @@ function PembayaranContent() {
   }
 
   function bolehUpload() {
-  if (!payment) {
-    return true;
-  }
+    if (!payment) {
+      return true;
+    }
 
-  return (
-    payment.status ===
-      "menunggu_pembayaran" ||
-    payment.status ===
-      "menunggu_verifikasi" ||
-    payment.status === "ditolak" ||
-    payment.status ===
-      "perlu_upload_ulang"
-  );
-}
+    return (
+      payment.status ===
+        "menunggu_pembayaran" ||
+      payment.status ===
+        "menunggu_verifikasi" ||
+      payment.status === "ditolak" ||
+      payment.status ===
+        "perlu_upload_ulang"
+    );
+  }
 
   function pilihFile(
     event: React.ChangeEvent<HTMLInputElement>
@@ -436,6 +436,12 @@ function PembayaranContent() {
                     Belum ada data pembayaran.
                   </p>
                 )}
+
+                {/* PENGINGAT BUKTI PENYEWAAN */}
+                <p className="mt-4 text-sm font-medium leading-6 text-red-400">
+                  ⚠ Harap screenshot detail pesanan ini
+                  sebagai bukti penyewaan.
+                </p>
               </div>
             </div>
           </div>
@@ -612,9 +618,14 @@ function PembayaranContent() {
     </main>
   );
 }
+
 export default function PembayaranPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-zinc-950" />}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-zinc-950" />
+      }
+    >
       <PembayaranContent />
     </Suspense>
   );
