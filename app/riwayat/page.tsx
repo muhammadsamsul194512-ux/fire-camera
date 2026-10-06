@@ -1,7 +1,12 @@
-
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import Link from "next/link";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import StatusBadge from "@/components/StatusBadge";
+import { usePengaturan } from "@/hooks/usePengaturan";
+import { formatRupiah, formatTanggal } from "@/lib/utils";
 
 type Pesanan = {
   nomor_pesanan: string;
@@ -23,35 +28,22 @@ type Pesanan = {
     jumlah: number;
     harga_per_hari: number;
     subtotal: number;
-    camera: {
-      id: number;
-      nama: string;
-      brand: string;
-      gambar_url: string | null;
-    } | null;
+    camera: { id: number; nama: string; brand: string; gambar_url: string | null } | null;
   }>;
   payment:
     | {
         id: number;
-        metode: string;
-        bank: string | null;
-        nomor_rekening: string | null;
-        nama_pemilik_rekening: string | null;
-        bukti_pembayaran_url: string | null;
         status: string;
         catatan_admin: string | null;
+        bukti_pembayaran_url: string | null;
         uploaded_at: string | null;
         verified_at: string | null;
       }
     | Array<{
         id: number;
-        metode: string;
-        bank: string | null;
-        nomor_rekening: string | null;
-        nama_pemilik_rekening: string | null;
-        bukti_pembayaran_url: string | null;
         status: string;
         catatan_admin: string | null;
+        bukti_pembayaran_url: string | null;
         uploaded_at: string | null;
         verified_at: string | null;
       }>
@@ -59,79 +51,33 @@ type Pesanan = {
 };
 
 export default function RiwayatPage() {
+  const pengaturan = usePengaturan();
   const [nomorPesanan, setNomorPesanan] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
-
-  const [namaToko, setNamaToko] = useState("");
-
-  const [pesanan, setPesanan] = useState<Pesanan | null>(
-    null
-  );
-
+  const [pesanan, setPesanan] = useState<Pesanan | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    async function ambilPengaturan() {
-      try {
-        const response = await fetch("/api/pengaturan");
-        const hasil = await response.json();
-
-        if (response.ok && hasil.data?.nama_toko) {
-          setNamaToko(hasil.data.nama_toko);
-        }
-      } catch (error) {
-        console.error(
-          "Error mengambil nama toko:",
-          error
-        );
-      }
-    }
-
-    ambilPengaturan();
-  }, []);
-
-  async function cekPesanan(
-    event: React.FormEvent<HTMLFormElement>
-  ) {
-    event.preventDefault();
-
+  async function cekPesanan(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
     setLoading(true);
     setError("");
     setPesanan(null);
 
     try {
-      const response = await fetch("/api/riwayat", {
+      const res = await fetch("/api/riwayat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          nomorPesanan,
-          whatsapp,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nomorPesanan, whatsapp }),
       });
-
-      const hasil = await response.json();
-
-      if (!response.ok) {
-        setError(
-          hasil.error ||
-            "Pesanan tidak ditemukan."
-        );
+      const hasil = await res.json();
+      if (!res.ok) {
+        setError(hasil.error || "Pesanan tidak ditemukan.");
         return;
       }
-
       setPesanan(hasil.data);
-    } catch (error) {
-      console.error(
-        "Error mengecek pesanan:",
-        error
-      );
-
-      setError(
-        "Terjadi kesalahan saat mengecek pesanan."
-      );
+    } catch {
+      setError("Terjadi kesalahan saat mengecek pesanan. Silakan coba lagi.");
     } finally {
       setLoading(false);
     }
@@ -141,337 +87,201 @@ export default function RiwayatPage() {
     ? pesanan?.payment[0]
     : pesanan?.payment;
 
-  function formatStatus(status: string) {
-    const statusMap: Record<string, string> = {
-      menunggu_pembayaran: "Menunggu Pembayaran",
-      menunggu_verifikasi: "Menunggu Verifikasi",
-      dikonfirmasi: "Dikonfirmasi",
-      disewa: "Sedang Disewa",
-      selesai: "Selesai",
-      dibatalkan: "Dibatalkan",
-      ditolak: "Ditolak",
-      perlu_upload_ulang: "Perlu Upload Ulang",
-    };
-
-    return statusMap[status] || status;
-  }
-
-  function statusClass(status: string) {
-    if (
-      status === "dikonfirmasi" ||
-      status === "selesai"
-    ) {
-      return "bg-green-500/15 text-green-400 border border-green-500/30";
-    }
-
-    if (
-      status === "dibatalkan" ||
-      status === "ditolak"
-    ) {
-      return "bg-red-500/15 text-red-400 border border-red-500/30";
-    }
-
-    if (status === "disewa") {
-      return "bg-blue-500/15 text-blue-400 border border-blue-500/30";
-    }
-
-    return "bg-yellow-400/10 text-yellow-400 border border-yellow-400/30";
-  }
+  const inputClass =
+    "w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white text-sm outline-none transition focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400/30";
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white">
-      {/* NAVBAR */}
-      <nav className="border-b border-zinc-800 bg-zinc-950">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-          <a
-            href="/"
-            className="text-2xl font-bold tracking-wider"
-          >
-            {namaToko || " "}
-          </a>
-
-          <a
-            href="/kamera"
-            className="text-sm text-zinc-300 transition hover:text-yellow-400"
-          >
-            Daftar Kamera
-          </a>
-        </div>
-      </nav>
+    <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
+      <Navbar namaToko={pengaturan.nama_toko} activeHref="/riwayat" />
 
       {/* HEADER */}
       <section className="border-b border-zinc-900 bg-zinc-900/40">
-        <div className="mx-auto max-w-3xl px-6 py-14 text-center">
+        <div className="mx-auto max-w-3xl px-6 py-12 text-center">
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-yellow-400">
             Pesanan
           </p>
-
-          <h1 className="mt-3 text-4xl font-bold">
-            Cek Riwayat Pesanan
-          </h1>
-
-          <p className="mt-4 text-zinc-400">
-            Masukkan nomor pesanan dan nomor WhatsApp
-            yang digunakan saat melakukan pemesanan.
+          <h1 className="mt-2 text-4xl font-bold">Cek Status Pesanan</h1>
+          <p className="mt-3 text-zinc-400">
+            Masukkan nomor pesanan dan nomor WhatsApp yang digunakan saat memesan.
           </p>
         </div>
       </section>
 
       {/* FORM */}
-      <section className="mx-auto max-w-2xl px-6 py-14">
-        <form
-          onSubmit={cekPesanan}
-          className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6"
-        >
-          {/* NOMOR PESANAN */}
+      <section className="mx-auto w-full max-w-2xl px-6 py-12">
+        <form onSubmit={cekPesanan} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+
           <div>
-            <label className="mb-2 block text-sm font-medium">
+            <label className="mb-1.5 block text-sm font-medium">
               Nomor Pesanan
             </label>
-
             <input
               type="text"
               value={nomorPesanan}
-              onChange={(e) =>
-                setNomorPesanan(e.target.value)
-              }
+              onChange={(e) => setNomorPesanan(e.target.value)}
               placeholder="Contoh: ORD-20260928-001"
-              className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-yellow-400"
+              className={inputClass}
               required
             />
           </div>
 
-          {/* WHATSAPP */}
-          <div className="mt-5">
-            <label className="mb-2 block text-sm font-medium">
+          <div className="mt-4">
+            <label className="mb-1.5 block text-sm font-medium">
               Nomor WhatsApp
             </label>
-
             <input
               type="text"
               value={whatsapp}
-              onChange={(e) =>
-                setWhatsapp(e.target.value)
-              }
+              onChange={(e) => setWhatsapp(e.target.value)}
               placeholder="Contoh: 081234567890"
-              className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-yellow-400"
+              className={inputClass}
               required
             />
           </div>
 
-          {/* TOMBOL */}
           <button
             type="submit"
             disabled={loading}
-            className="mt-6 w-full rounded-full bg-yellow-400 px-6 py-3 font-semibold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-5 w-full rounded-full bg-yellow-400 px-6 py-3 font-semibold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {loading
-              ? "Mencari Pesanan..."
-              : "Cek Pesanan"}
+            {loading ? "Mencari Pesanan…" : "Cek Pesanan"}
           </button>
         </form>
+
+        {/* Error */}
+        {error && (
+          <div className="mt-4 rounded-2xl border border-red-900 bg-red-950/30 p-5">
+            <p className="font-semibold text-red-400">Pesanan tidak ditemukan</p>
+            <p className="mt-1 text-sm text-red-300">{error}</p>
+          </div>
+        )}
       </section>
 
-      {/* ERROR */}
-      {error && (
-        <section className="mx-auto max-w-2xl px-6 pb-14">
-          <div className="rounded-2xl border border-red-900 bg-red-950/30 p-6">
-            <p className="font-semibold text-red-400">
-              Pesanan tidak ditemukan
-            </p>
-
-            <p className="mt-2 text-sm text-red-300">
-              {error}
-            </p>
-          </div>
-        </section>
-      )}
-
-      {/* HASIL PESANAN */}
+      {/* RESULT */}
       {pesanan && (
-        <section className="mx-auto max-w-2xl px-6 pb-14">
+        <section className="mx-auto w-full max-w-2xl px-6 pb-14">
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-            {/* NOMOR DAN STATUS */}
+
+            {/* Header */}
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
               <div>
-                <p className="text-sm text-zinc-500">
-                  Nomor Pesanan
-                </p>
-
-                <p className="mt-1 text-xl font-bold">
-                  {pesanan.nomor_pesanan}
-                </p>
+                <p className="text-xs text-zinc-500">Nomor Pesanan</p>
+                <p className="mt-1 text-xl font-bold">{pesanan.nomor_pesanan}</p>
               </div>
-
-              <span
-                className={`inline-block w-fit rounded-full px-4 py-2 text-sm font-semibold ${statusClass(
-                  pesanan.status
-                )}`}
-              >
-                {formatStatus(pesanan.status)}
-              </span>
+              <StatusBadge status={pesanan.status} />
             </div>
 
-            {/* DATA PELANGGAN */}
-            <div className="mt-6 border-t border-zinc-800 pt-6">
-              <p className="text-sm text-zinc-500">
+            {/* Customer */}
+            <div className="mt-6 border-t border-zinc-800 pt-5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
                 Data Pelanggan
               </p>
-
-              <p className="mt-2 font-semibold">
-                {pesanan.customer.nama_lengkap}
-              </p>
-
+              <p className="mt-2 font-semibold">{pesanan.customer.nama_lengkap}</p>
               <p className="mt-1 text-sm text-zinc-400">
                 WhatsApp: {pesanan.customer.whatsapp}
               </p>
-
               {pesanan.customer.email && (
-                <p className="mt-1 text-sm text-zinc-400">
+                <p className="mt-0.5 text-sm text-zinc-400">
                   Email: {pesanan.customer.email}
                 </p>
               )}
             </div>
 
-            {/* JADWAL SEWA */}
-            <div className="mt-6 border-t border-zinc-800 pt-6">
-              <p className="text-sm text-zinc-500">
+            {/* Schedule */}
+            <div className="mt-6 border-t border-zinc-800 pt-5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
                 Jadwal Penyewaan
               </p>
-
-              <div className="mt-4 grid gap-5 sm:grid-cols-2">
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 text-sm">
                 <div>
-                  <p className="text-sm text-zinc-500">
-                    Tanggal & Jam Ambil
-                  </p>
-
-                  <p className="mt-1 font-semibold">
-                    {pesanan.tanggal_ambil}{" "}
-                    {pesanan.jam_ambil}
+                  <p className="text-zinc-500">Tanggal Ambil</p>
+                  <p className="mt-0.5 font-semibold">
+                    {formatTanggal(pesanan.tanggal_ambil)}, pukul {pesanan.jam_ambil}
                   </p>
                 </div>
-
                 <div>
-                  <p className="text-sm text-zinc-500">
-                    Tanggal & Jam Kembali
-                  </p>
-
-                  <p className="mt-1 font-semibold">
-                    {pesanan.tanggal_kembali}{" "}
-                    {pesanan.jam_kembali}
+                  <p className="text-zinc-500">Tanggal Kembali</p>
+                  <p className="mt-0.5 font-semibold">
+                    {formatTanggal(pesanan.tanggal_kembali)}, pukul {pesanan.jam_kembali}
                   </p>
                 </div>
               </div>
-
-              <div className="mt-5">
-                <p className="text-sm text-zinc-500">
-                  Lama Sewa
-                </p>
-
-                <p className="mt-1 font-semibold">
-                  {pesanan.jumlah_hari} hari
-                </p>
-              </div>
+              <p className="mt-3 text-sm">
+                <span className="text-zinc-500">Lama sewa: </span>
+                <span className="font-semibold">{pesanan.jumlah_hari} hari</span>
+              </p>
             </div>
 
-            {/* KAMERA */}
-            <div className="mt-6 border-t border-zinc-800 pt-6">
-              <p className="text-sm text-zinc-500">
+            {/* Cameras */}
+            <div className="mt-6 border-t border-zinc-800 pt-5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
                 Kamera yang Disewa
               </p>
-
               <div className="mt-3 space-y-3">
-                {pesanan.order_detail.map(
-                  (detail) => (
-                    <div
-                      key={detail.id}
-                      className="rounded-xl bg-zinc-950 p-4"
-                    >
-                      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-                        <div>
-                          <p className="font-semibold">
-                            {detail.camera?.nama ||
-                              "Kamera"}
-                          </p>
-
-                          <p className="text-sm text-zinc-500">
-                            {detail.camera?.brand || ""}
-                          </p>
-                        </div>
-
-                        <div className="text-left sm:text-right">
-                          <p className="font-semibold">
-                            {detail.jumlah} unit
-                          </p>
-
-                          <p className="text-sm text-zinc-500">
-                            Rp{" "}
-                            {Number(
-                              detail.subtotal
-                            ).toLocaleString("id-ID")}
-                          </p>
-                        </div>
-                      </div>
+                {pesanan.order_detail.map((detail) => (
+                  <div
+                    key={detail.id}
+                    className="flex items-center justify-between gap-3 rounded-xl bg-zinc-950 px-4 py-3 text-sm"
+                  >
+                    <div>
+                      <p className="font-semibold">
+                        {detail.camera?.nama || "Kamera"}
+                      </p>
+                      <p className="text-zinc-500">{detail.camera?.brand || ""}</p>
                     </div>
-                  )
-                )}
+                    <div className="text-right">
+                      <p className="font-semibold">{detail.jumlah} unit</p>
+                      <p className="text-zinc-500">{formatRupiah(detail.subtotal)}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* TOTAL */}
-            <div className="mt-6 border-t border-zinc-800 pt-6">
-              <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
-                <p className="text-lg font-semibold">
-                  Total Pembayaran
-                </p>
-
-                <p className="text-2xl font-bold text-yellow-400">
-                  Rp{" "}
-                  {Number(
-                    pesanan.total_harga
-                  ).toLocaleString("id-ID")}
-                </p>
-              </div>
+            {/* Total */}
+            <div className="mt-6 border-t border-zinc-800 pt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <p className="font-bold">Total Pembayaran</p>
+              <p className="text-2xl font-bold text-yellow-400">
+                {formatRupiah(Number(pesanan.total_harga))}
+              </p>
             </div>
 
-            {/* PEMBAYARAN */}
-            <div className="mt-6 border-t border-zinc-800 pt-6">
-              <p className="text-sm text-zinc-500">
+            {/* Payment status */}
+            <div className="mt-6 border-t border-zinc-800 pt-5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
                 Status Pembayaran
               </p>
-
               {payment ? (
-                <>
-                  <div className="mt-2">
-                    <span
-                      className={`inline-block rounded-full px-4 py-2 text-sm font-semibold ${statusClass(
-                        payment.status
-                      )}`}
-                    >
-                      {formatStatus(payment.status)}
-                    </span>
-                  </div>
-
+                <div className="mt-2">
+                  <StatusBadge status={payment.status} size="sm" />
                   {payment.catatan_admin && (
-                    <div className="mt-4 rounded-xl bg-zinc-950 p-4">
-                      <p className="text-sm text-zinc-500">
-                        Catatan Admin
-                      </p>
-
+                    <div className="mt-3 rounded-xl bg-zinc-950 px-4 py-3">
+                      <p className="text-xs text-zinc-500">Catatan Admin</p>
                       <p className="mt-1 text-sm text-zinc-300">
                         {payment.catatan_admin}
                       </p>
                     </div>
                   )}
-
                   {payment.uploaded_at && (
-                    <p className="mt-4 text-sm text-zinc-500">
+                    <p className="mt-3 text-xs text-zinc-500">
                       Bukti pembayaran sudah diunggah.
                     </p>
                   )}
-                </>
+                  {/* Link to payment page if pending */}
+                  {(payment.status === "menunggu_pembayaran" ||
+                    payment.status === "menunggu_verifikasi" ||
+                    payment.status === "ditolak" ||
+                    payment.status === "perlu_upload_ulang") && (
+                    <Link
+                      href={`/pembayaran?pesanan=${encodeURIComponent(pesanan.nomor_pesanan)}&total=${pesanan.total_harga}`}
+                      className="mt-4 inline-block rounded-full bg-yellow-400 px-5 py-2 text-sm font-semibold text-black transition hover:bg-yellow-300"
+                    >
+                      Upload Bukti Pembayaran →
+                    </Link>
+                  )}
+                </div>
               ) : (
-                <p className="mt-2 text-zinc-400">
+                <p className="mt-2 text-sm text-zinc-400">
                   Belum ada data pembayaran.
                 </p>
               )}
@@ -480,14 +290,7 @@ export default function RiwayatPage() {
         </section>
       )}
 
-      {/* FOOTER */}
-      <footer className="border-t border-zinc-800 bg-black">
-        <div className="mx-auto max-w-7xl px-6 py-8">
-          <p className="text-sm text-zinc-600">
-            © 2026 {namaToko || " "}
-          </p>
-        </div>
-      </footer>
-    </main>
+      <Footer namaToko={pengaturan.nama_toko} whatsapp={pengaturan.whatsapp} />
+    </div>
   );
 }

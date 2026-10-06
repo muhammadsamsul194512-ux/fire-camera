@@ -1,7 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import RentalDatePicker from "@/components/RentalDatePicker";
+import { usePengaturan } from "@/hooks/usePengaturan";
+import { formatRupiah, hitungJumlahHari, JAM_AMBIL, JAM_KEMBALI } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 
 type Camera = {
@@ -14,418 +19,407 @@ type Camera = {
   gambar_url: string | null;
 };
 
+type StokState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "done"; data: Record<number, number> }
+  | { status: "error"; message: string };
+
 export default function KameraPage() {
+  const pengaturan = usePengaturan();
   const [cameras, setCameras] = useState<Camera[]>([]);
-  const [namaToko, setNamaToko] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  
+  const [loadingCameras, setLoadingCameras] = useState(true);
+  const [errorCameras, setErrorCameras] = useState("");
+
   const [tanggalAmbil, setTanggalAmbil] = useState("");
-const [jamAmbil, setJamAmbil] = useState("");
-const [tanggalKembali, setTanggalKembali] = useState("");
-const [jamKembali, setJamKembali] = useState("");
+  const [tanggalKembali, setTanggalKembali] = useState("");
 
-const [stokTersedia, setStokTersedia] = useState<
-  Record<number, number>
->({});
+  const [stokState, setStokState] = useState<StokState>({ status: "idle" });
 
+  // Load cameras once on mount
   useEffect(() => {
-    async function getCameras() {
+    async function loadCameras() {
       const { data, error } = await supabase
         .from("camera")
-        .select(
-          "id, nama, brand, deskripsi, harga_per_hari, stok, gambar_url"
-        )
+        .select("id, nama, brand, deskripsi, harga_per_hari, stok, gambar_url")
         .eq("aktif", true)
         .order("id", { ascending: true });
 
       if (error) {
-        console.error(error);
-        setError("Gagal mengambil data kamera.");
+        setErrorCameras("Gagal memuat daftar kamera. Silakan coba lagi.");
       } else {
         setCameras(data || []);
       }
-
-      setLoading(false);
+      setLoadingCameras(false);
     }
-
-    async function ambilNamaToko() {
-      try {
-        const response = await fetch("/api/pengaturan");
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          console.error(
-            "Gagal mengambil nama toko:",
-            result
-          );
-          return;
-        }
-
-        if (result.data?.nama_toko) {
-          setNamaToko(result.data.nama_toko);
-        }
-      } catch (error) {
-        console.error(
-          "Error mengambil nama toko:",
-          error
-        );
-      }
-    }
-
-        getCameras();
-    ambilNamaToko();
+    loadCameras();
   }, []);
 
-  useEffect(() => {
-    async function cekSemuaStok() {
-      if (
-        !tanggalAmbil ||
-        !jamAmbil ||
-        !tanggalKembali ||
-        !jamKembali
-      ) {
-        setStokTersedia({});
-        return;
-      }
+  // Check availability whenever valid dates are set
+  const cekStok = useCallback(async () => {
+    if (!tanggalAmbil || !tanggalKembali) {
+      setStokState({ status: "idle" });
+      return;
+    }
+    const jumlahHari = hitungJumlahHari(tanggalAmbil, tanggalKembali);
+    if (jumlahHari <= 0) {
+      setStokState({ status: "idle" });
+      return;
+    }
 
-      const waktuAmbil = `${tanggalAmbil}T${jamAmbil}`;
-const waktuKembali = `${tanggalKembali}T${jamKembali}`;
+    setStokState({ status: "loading" });
 
-if (waktuKembali <= waktuAmbil) {
-  setStokTersedia({});
-  return;
-}
-
-      const hasilStok: Record<number, number> = {};
-
-      await Promise.all(
-        cameras.map(async (camera) => {
-          try {
-            const params = new URLSearchParams({
-              kameraId: String(camera.id),
-              tanggalAmbil,
-              jamAmbil,
-              tanggalKembali,
-              jamKembali,
-            });
-
-            const response = await fetch(
-              `/api/kamera/stok?${params.toString()}`
-            );
-
-            const data = await response.json();
-
-            if (response.ok) {
-              hasilStok[camera.id] = Number(
-                data.stokTersedia
-              );
-            }
-          } catch (error) {
-            console.error(
-              `Gagal mengecek stok kamera ${camera.nama}:`,
-              error
-            );
-          }
+    try {
+      const results = await Promise.all(
+        cameras.map(async (cam) => {
+          const params = new URLSearchParams({
+            kameraId: String(cam.id),
+            tanggalAmbil,
+            jamAmbil: JAM_AMBIL,
+            tanggalKembali,
+            jamKembali: JAM_KEMBALI,
+          });
+          const res = await fetch(`/api/kamera/stok?${params}`);
+          const json = await res.json();
+          return { id: cam.id, stok: res.ok ? Number(json.stokTersedia) : cam.stok };
         })
       );
 
-      setStokTersedia(hasilStok);
+      const map: Record<number, number> = {};
+      results.forEach((r) => { map[r.id] = r.stok; });
+      setStokState({ status: "done", data: map });
+    } catch {
+      setStokState({ status: "error", message: "Gagal mengecek ketersediaan. Silakan coba lagi." });
     }
+  }, [cameras, tanggalAmbil, tanggalKembali]);
 
-    cekSemuaStok();
-  }, [
-    cameras,
-    tanggalAmbil,
-    jamAmbil,
-    tanggalKembali,
-    jamKembali,
-  ]);
+  useEffect(() => {
+    async function run() { await cekStok(); }
+    run();
+  }, [cekStok]);
 
-  function formatRupiah(harga: number) {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(harga);
+  // Derived data
+  const datesSelected = !!(tanggalAmbil && tanggalKembali && hitungJumlahHari(tanggalAmbil, tanggalKembali) > 0);
+
+  function getStok(cam: Camera): number {
+    if (stokState.status === "done") return stokState.data[cam.id] ?? cam.stok;
+    return cam.stok;
   }
 
-  function getStatus(stok: number) {
-    if (stok <= 0) {
-      return {
-        text: "Stok Habis",
-        className: "bg-red-500/10 text-red-400",
-      };
-    }
-
-    if (stok <= 2) {
-      return {
-        text: `Tersisa ${stok}`,
-        className: "bg-yellow-500/10 text-yellow-400",
-      };
-    }
-
-    return {
-      text: `Tersedia ${stok}`,
-      className: "bg-green-500/10 text-green-400",
-    };
+  function buildSewaUrl(cam: Camera): string {
+    const params = new URLSearchParams({ kameraId: String(cam.id) });
+    if (tanggalAmbil) params.set("tanggalAmbil", tanggalAmbil);
+    if (tanggalKembali) params.set("tanggalKembali", tanggalKembali);
+    return `/sewa?${params}`;
   }
+
+  function buildDetailUrl(cam: Camera): string {
+    const params = new URLSearchParams();
+    if (tanggalAmbil) params.set("tanggalAmbil", tanggalAmbil);
+    if (tanggalKembali) params.set("tanggalKembali", tanggalKembali);
+    const qs = params.toString();
+    return `/kamera/${cam.id}${qs ? `?${qs}` : ""}`;
+  }
+
+  // Split cameras into available and unavailable when dates are chosen
+  const camerasAvailable = datesSelected
+    ? cameras.filter((c) => getStok(c) > 0)
+    : cameras;
+  const camerasUnavailable = datesSelected
+    ? cameras.filter((c) => getStok(c) <= 0)
+    : [];
+
+  const jumlahHari = hitungJumlahHari(tanggalAmbil, tanggalKembali);
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white">
-      {/* Navbar */}
-      <nav className="border-b border-zinc-800">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-          <Link
-            href="/"
-            className="text-xl font-bold"
-          >
-            {namaToko}
-          </Link>
+    <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
+      <Navbar namaToko={pengaturan.nama_toko} activeHref="/kamera" />
 
-          <div className="flex gap-6 text-sm text-zinc-300">
-            <Link
-              href="/"
-              className="hover:text-yellow-400"
-            >
-              Beranda
-            </Link>
-
-            <Link
-              href="/kamera"
-              className="text-yellow-400"
-            >
-              Daftar Kamera
-            </Link>
-
-            <Link
-              href="/sewa"
-              className="hover:text-yellow-400"
-            >
-              Sewa
-            </Link>
-          </div>
+      {/* PAGE HEADER */}
+      <section className="border-b border-zinc-900 bg-zinc-900/40">
+        <div className="mx-auto max-w-6xl px-6 py-12">
+          <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-yellow-400">
+            Koleksi Kamera
+          </p>
+          <h1 className="text-4xl font-bold md:text-5xl">Daftar Kamera</h1>
+          <p className="mt-3 max-w-xl text-zinc-400">
+            Pilih tanggal sewa untuk melihat ketersediaan, atau langsung
+            jelajahi koleksi kamera kami.
+          </p>
         </div>
-      </nav>
-
-      {/* Header */}
-      <section className="mx-auto max-w-6xl px-6 pb-10 pt-16">
-        <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">
-          Koleksi Kamera
-        </p>
-
-        <div className="mb-8 grid gap-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-5 md:grid-cols-2 lg:grid-cols-4">
-  <div>
-    <label className="mb-2 block text-sm text-zinc-400">
-      Tanggal Ambil
-    </label>
-    <input
-      type="date"
-      value={tanggalAmbil}
-      onChange={(e) => setTanggalAmbil(e.target.value)}
-      className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-yellow-400"
-    />
-  </div>
-
-  <div>
-    <label className="mb-2 block text-sm text-zinc-400">
-      Jam Ambil
-    </label>
-    <input
-      type="time"
-      value={jamAmbil}
-      onChange={(e) => setJamAmbil(e.target.value)}
-      className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-yellow-400"
-    />
-  </div>
-
-  <div>
-    <label className="mb-2 block text-sm text-zinc-400">
-      Tanggal Kembali
-    </label>
-    <input
-      type="date"
-      value={tanggalKembali}
-      onChange={(e) => setTanggalKembali(e.target.value)}
-      className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-yellow-400"
-    />
-  </div>
-
-  <div>
-    <label className="mb-2 block text-sm text-zinc-400">
-      Jam Kembali
-    </label>
-    <input
-      type="time"
-      value={jamKembali}
-      onChange={(e) => setJamKembali(e.target.value)}
-      className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-yellow-400"
-    />
-  </div>
-</div>
-
-        <h1 className="text-4xl font-bold md:text-5xl">
-          Daftar Kamera
-        </h1>
-
-        <p className="mt-4 max-w-2xl text-zinc-400">
-          Pilih kamera yang sesuai dengan kebutuhanmu
-          dan cek ketersediaan stok sebelum melakukan
-          penyewaan.
-        </p>
       </section>
 
-      {/* Loading */}
-      {loading && (
-        <section className="mx-auto max-w-6xl px-6 pb-20">
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-center text-zinc-400">
-            Memuat data kamera...
+      {/* DATE PICKER */}
+      <section className="border-b border-zinc-900 bg-zinc-950">
+        <div className="mx-auto max-w-6xl px-6 py-6">
+          <RentalDatePicker
+            tanggalAmbil={tanggalAmbil}
+            tanggalKembali={tanggalKembali}
+            onChangeTanggalAmbil={(v) => {
+              setTanggalAmbil(v);
+              if (tanggalKembali && v >= tanggalKembali) setTanggalKembali("");
+            }}
+            onChangeTanggalKembali={setTanggalKembali}
+            loadingAvailability={stokState.status === "loading"}
+            compact
+          />
+        </div>
+      </section>
+
+      {/* MAIN CONTENT */}
+      <section className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
+
+        {/* Loading cameras */}
+        {loadingCameras && (
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-10 text-center">
+            <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-yellow-400" />
+            <p className="text-zinc-400">Memuat daftar kamera…</p>
           </div>
-        </section>
-      )}
-
-      {/* Error */}
-      {!loading && error && (
-        <section className="mx-auto max-w-6xl px-6 pb-20">
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-center text-red-400">
-            {error}
-          </div>
-        </section>
-      )}
-
-      {/* Camera List */}
-      {!loading && !error && (
-        <section className="mx-auto grid max-w-6xl gap-6 px-6 pb-20 md:grid-cols-2 lg:grid-cols-3">
-          {cameras.map((camera) => {
-            const waktuSudahDipilih =
-  tanggalAmbil &&
-  jamAmbil &&
-  tanggalKembali &&
-  jamKembali;
-
-const waktuValid =
-  waktuSudahDipilih &&
-  `${tanggalKembali}T${jamKembali}` >
-    `${tanggalAmbil}T${jamAmbil}`;
-
-const stokUntukWaktu =
-  waktuValid
-    ? (stokTersedia[camera.id] ?? camera.stok)
-    : camera.stok;
-
-const status = getStatus(stokUntukWaktu);
-
-            return (
-              <article
-                key={camera.id}
-                className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900"
-              >
-                {/* Gambar Kamera */}
-<div className="h-52 overflow-hidden bg-zinc-800">
-  {camera.gambar_url ? (
-    <img
-      src={camera.gambar_url}
-      alt={`${camera.brand} ${camera.nama}`}
-      className="h-full w-full object-cover"
-    />
-  ) : (
-    <div className="flex h-full items-center justify-center text-6xl">
-      📷
-    </div>
-  )}
-</div>
-
-                <div className="p-6">
-                  <div className="mb-2 text-sm text-yellow-400">
-                    {camera.brand}
-                  </div>
-
-                  <h2 className="text-2xl font-bold">
-                    {camera.nama}
-                  </h2>
-
-                  <p className="mt-3 min-h-12 text-sm leading-6 text-zinc-400">
-                    {camera.deskripsi}
-                  </p>
-
-                  <div className="mt-5 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-zinc-500">
-                        Harga sewa
-                      </p>
-
-                      <p className="font-semibold text-yellow-400">
-                        {formatRupiah(
-                          camera.harga_per_hari
-                        )}
-                        <span className="text-xs text-zinc-500">
-                          {" "}
-                          / hari
-                        </span>
-                      </p>
-                    </div>
-
-                    <div className="text-right">
-  <span
-    className={`rounded-full px-3 py-1 text-xs font-medium ${status.className}`}
-  >
-    {status.text}
-  </span>
-
-  {waktuValid && (
-    <p className="mt-2 text-xs text-zinc-500">
-      Untuk waktu yang dipilih
-    </p>
-  )}
-</div>
-                  </div>
-
-                  {tanggalAmbil &&
-  jamAmbil &&
-  tanggalKembali &&
-  jamKembali && (
-    <p className="mt-3 text-xs text-zinc-500">
-      Stok berdasarkan waktu penyewaan yang dipilih.
-    </p>
-  )}
-
-                  <div className="mt-6 flex gap-3">
-                    <Link
-  href={`/sewa?kameraId=${camera.id}&tanggalAmbil=${tanggalAmbil}&jamAmbil=${jamAmbil}&tanggalKembali=${tanggalKembali}&jamKembali=${jamKembali}`}
-                      className={`flex-1 rounded-xl px-4 py-3 text-center text-sm font-semibold transition ${
-                        stokUntukWaktu > 0
-  ? "bg-yellow-400 text-black hover:bg-yellow-300"
-  : "cursor-not-allowed bg-zinc-800 text-zinc-500"
-                      }`}
-                      onClick={(e) => {
-                        if (stokUntukWaktu <= 0) {
-                          e.preventDefault();
-                        }
-                      }}
-                    >
-                      {stokUntukWaktu > 0
-  ? "Sewa Sekarang"
-  : "Stok Habis"}
-                    </Link>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </section>
-      )}
-
-      {/* Empty */}
-      {!loading &&
-        !error &&
-        cameras.length === 0 && (
-          <section className="mx-auto max-w-6xl px-6 pb-20">
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-10 text-center text-zinc-400">
-              Belum ada kamera yang tersedia.
-            </div>
-          </section>
         )}
-    </main>
+
+        {/* Error loading cameras */}
+        {!loadingCameras && errorCameras && (
+          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-8 text-center">
+            <p className="text-red-400 font-semibold">Gagal memuat kamera</p>
+            <p className="mt-2 text-sm text-red-300">{errorCameras}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-5 rounded-full bg-red-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-red-400 transition"
+            >
+              Coba Lagi
+            </button>
+          </div>
+        )}
+
+        {/* Empty catalog */}
+        {!loadingCameras && !errorCameras && cameras.length === 0 && (
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-10 text-center">
+            <p className="text-4xl mb-4">📷</p>
+            <p className="font-semibold text-zinc-300">Belum ada kamera tersedia.</p>
+            <p className="mt-2 text-sm text-zinc-500">Silakan kembali lagi nanti.</p>
+          </div>
+        )}
+
+        {!loadingCameras && !errorCameras && cameras.length > 0 && (
+          <>
+            {/* Availability checking */}
+            {stokState.status === "loading" && (
+              <div className="mb-6 flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 px-5 py-3">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-yellow-400 flex-shrink-0" />
+                <p className="text-sm text-zinc-400">Mengecek ketersediaan kamera…</p>
+              </div>
+            )}
+
+            {stokState.status === "error" && (
+              <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-5 py-4 flex items-center justify-between gap-4">
+                <p className="text-sm text-red-400">{stokState.message}</p>
+                <button
+                  onClick={cekStok}
+                  className="flex-shrink-0 rounded-full border border-red-500/40 px-4 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/10 transition"
+                >
+                  Coba Lagi
+                </button>
+              </div>
+            )}
+
+            {/* Summary when dates are selected */}
+            {datesSelected && stokState.status === "done" && (
+              <div className="mb-6">
+                {camerasAvailable.length > 0 ? (
+                  <div className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-2.5">
+                    <span className="h-2 w-2 rounded-full bg-green-400 flex-shrink-0" />
+                    <p className="text-sm text-zinc-400">
+                      <span className="font-semibold text-green-400">{camerasAvailable.length} kamera tersedia</span>
+                      {" "}untuk {jumlahHari} hari yang kamu pilih.
+                    </p>
+                    <button
+                      onClick={() => { setTanggalAmbil(""); setTanggalKembali(""); }}
+                      className="ml-auto flex-shrink-0 text-xs text-zinc-600 hover:text-zinc-400 transition"
+                    >
+                      Hapus filter
+                    </button>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/5 px-6 py-6 text-center">
+                    <p className="text-2xl mb-3">📅</p>
+                    <p className="font-semibold text-yellow-400">Semua kamera sedang disewa untuk tanggal ini.</p>
+                    <p className="mt-1 text-sm text-zinc-400">
+                      Coba pilih tanggal lain untuk melihat ketersediaan.
+                    </p>
+                    <button
+                      onClick={() => { setTanggalAmbil(""); setTanggalKembali(""); }}
+                      className="mt-4 inline-block rounded-full border border-zinc-700 px-5 py-2 text-sm font-semibold text-zinc-300 transition hover:border-yellow-400 hover:text-yellow-400"
+                    >
+                      Lihat Semua Kamera
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Available cameras */}
+            {camerasAvailable.length > 0 && (
+              <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                {camerasAvailable.map((camera) => {
+                  const stok = getStok(camera);
+                  const isChecked = stokState.status === "done";
+                  const total = jumlahHari > 0 ? jumlahHari * camera.harga_per_hari : null;
+
+                  return (
+                    <article
+                      key={camera.id}
+                      className="group flex flex-col overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 transition hover:border-zinc-700"
+                    >
+                      {/* Image */}
+                      <Link href={buildDetailUrl(camera)}>
+                        <div className="h-48 overflow-hidden bg-zinc-800">
+                          {camera.gambar_url ? (
+                            <img
+                              src={camera.gambar_url}
+                              alt={`${camera.brand} ${camera.nama}`}
+                              className="h-full w-full object-cover transition group-hover:scale-105"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-5xl">
+                              📷
+                            </div>
+                          )}
+                        </div>
+                      </Link>
+
+                      <div className="flex flex-1 flex-col p-5">
+                        {/* Brand + name */}
+                        <p className="text-xs font-semibold uppercase tracking-wider text-yellow-400">
+                          {camera.brand}
+                        </p>
+                        <Link href={buildDetailUrl(camera)}>
+                          <h2 className="mt-1 text-xl font-bold hover:text-yellow-400 transition">
+                            {camera.nama}
+                          </h2>
+                        </Link>
+
+                        {camera.deskripsi && (
+                          <p className="mt-2 line-clamp-2 text-sm text-zinc-400 flex-1">
+                            {camera.deskripsi}
+                          </p>
+                        )}
+
+                        {/* Price + availability */}
+                        <div className="mt-4 flex items-end justify-between gap-2">
+                          <div>
+                            <p className="text-xs text-zinc-500">Harga sewa</p>
+                            <p className="font-semibold text-yellow-400">
+                              {formatRupiah(camera.harga_per_hari)}
+                              <span className="text-xs text-zinc-500"> / hari</span>
+                            </p>
+                            {total !== null && (
+                              <p className="mt-0.5 text-xs text-zinc-400">
+                                Estimasi {jumlahHari} hari: <span className="font-semibold text-white">{formatRupiah(total)}</span>
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="text-right">
+                            {isChecked ? (
+                              stok <= 0 ? (
+                                <span className="rounded-full bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-400">
+                                  Habis
+                                </span>
+                              ) : stok <= 2 ? (
+                                <span className="rounded-full bg-yellow-500/10 px-3 py-1 text-xs font-semibold text-yellow-400">
+                                  Tersisa {stok}
+                                </span>
+                              ) : (
+                                <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-400">
+                                  ✓ Tersedia
+                                </span>
+                              )
+                            ) : (
+                              <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs font-semibold text-zinc-400">
+                                {camera.stok} unit
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* CTA */}
+                        <div className="mt-4 flex gap-2">
+                          <Link
+                            href={buildSewaUrl(camera)}
+                            className="flex-1 rounded-xl bg-yellow-400 px-4 py-2.5 text-center text-sm font-semibold text-black transition hover:bg-yellow-300"
+                          >
+                            Sewa Sekarang
+                          </Link>
+                          <Link
+                            href={buildDetailUrl(camera)}
+                            className="rounded-xl border border-zinc-700 px-4 py-2.5 text-sm font-semibold text-zinc-300 transition hover:border-yellow-400 hover:text-yellow-400"
+                          >
+                            Detail
+                          </Link>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Unavailable cameras (dimmed, below available) */}
+            {datesSelected && camerasUnavailable.length > 0 && (
+              <div className="mt-10">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-zinc-800" />
+                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600">
+                    Tidak tersedia untuk tanggal ini ({camerasUnavailable.length})
+                  </p>
+                  <div className="h-px flex-1 bg-zinc-800" />
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                  {camerasUnavailable.map((camera) => (
+                    <article
+                      key={camera.id}
+                      className="flex flex-col overflow-hidden rounded-2xl border border-zinc-800/50 bg-zinc-900/40 opacity-50"
+                    >
+                      <div className="h-40 overflow-hidden bg-zinc-800/50">
+                        {camera.gambar_url ? (
+                          <img
+                            src={camera.gambar_url}
+                            alt={`${camera.brand} ${camera.nama}`}
+                            className="h-full w-full object-cover grayscale"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-4xl">
+                            📷
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-4">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600">
+                          {camera.brand}
+                        </p>
+                        <h2 className="mt-0.5 text-base font-bold text-zinc-500">
+                          {camera.nama}
+                        </h2>
+                        <div className="mt-3 flex items-center justify-between gap-2">
+                          <p className="text-xs text-zinc-600">
+                            {formatRupiah(camera.harga_per_hari)}<span> / hari</span>
+                          </p>
+                          <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-zinc-500">
+                            Tidak tersedia
+                          </span>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      <Footer namaToko={pengaturan.nama_toko} whatsapp={pengaturan.whatsapp} />
+    </div>
   );
 }
