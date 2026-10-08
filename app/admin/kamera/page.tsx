@@ -15,6 +15,15 @@ type Camera = {
   aktif: boolean;
 };
 
+type CameraPhoto = {
+  id: number;
+  camera_id: number;
+  image_url: string;
+  storage_path: string;
+  sort_order: number;
+  created_at: string;
+};
+
 export default function AdminKameraPage() {
   const router = useRouter();
 
@@ -35,6 +44,12 @@ export default function AdminKameraPage() {
 
   const [gambarFile, setGambarFile] = useState<File | null>(null);
   const [gambarPreview, setGambarPreview] = useState<string | null>(null);
+
+  const [cameraPhotos, setCameraPhotos] = useState<CameraPhoto[]>([]);
+  const [cameraPhotoLoading, setCameraPhotoLoading] = useState(false);
+  const [cameraPhotoError, setCameraPhotoError] = useState("");
+  const [cameraPhotoUploading, setCameraPhotoUploading] = useState(false);
+  const [cameraPhotoFile, setCameraPhotoFile] = useState<File | null>(null);
 
   const formRef = useRef<HTMLDivElement>(null);
 
@@ -125,8 +140,12 @@ export default function AdminKameraPage() {
 
     setGambarFile(null);
     setGambarPreview(item.gambar_url);
+    setCameraPhotos([]);
+    setCameraPhotoError("");
+    setCameraPhotoFile(null);
 
     setTampilForm(true);
+    void ambilFotoKamera(item.id);
 
     setTimeout(() => {
       formRef.current?.scrollIntoView({
@@ -138,7 +157,192 @@ export default function AdminKameraPage() {
 
   function tutupForm() {
     setTampilForm(false);
+    setCameraPhotos([]);
     resetForm();
+  }
+
+  async function ambilFotoKamera(cameraId: number) {
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session) {
+      setCameraPhotoError("Sesi admin tidak ditemukan.");
+      return;
+    }
+
+    setCameraPhotoLoading(true);
+    setCameraPhotoError("");
+
+    try {
+      const res = await fetch(`/api/admin/kamera/foto?cameraId=${cameraId}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      const hasil = await res.json();
+
+      console.log("Hasil ambil foto kamera:", res);
+
+      if (!res.ok) {
+        throw new Error(hasil.error || "Gagal mengambil foto kamera.");
+      }
+
+      setCameraPhotos(hasil.data || []);
+    } catch (error) {
+      console.error("Gagal ambil foto kamera:", error);
+      setCameraPhotoError(
+        error instanceof Error ? error.message : "Gagal mengambil foto kamera.",
+      );
+      setCameraPhotos([]);
+    } finally {
+      setCameraPhotoLoading(false);
+    }
+  }
+
+  async function uploadFotoKamera() {
+    if (!kameraEditId || !cameraPhotoFile) {
+      setCameraPhotoError("Pilih foto hasil kamera terlebih dahulu.");
+      return;
+    }
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session) {
+      setCameraPhotoError("Sesi admin tidak ditemukan.");
+      return;
+    }
+
+    setCameraPhotoUploading(true);
+    setCameraPhotoError("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", cameraPhotoFile);
+      formData.append("cameraId", String(kameraEditId));
+
+      const res = await fetch("/api/admin/kamera/foto", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: formData,
+      });
+
+      const hasil = await res.json();
+
+      if (!res.ok) {
+        throw new Error(hasil.error || "Gagal upload foto hasil kamera.");
+      }
+
+      setCameraPhotoFile(null);
+      setCameraPhotoError("");
+      await ambilFotoKamera(kameraEditId);
+      alert("Foto hasil kamera berhasil ditambahkan.");
+    } catch (error) {
+      console.error("Gagal upload foto hasil kamera:", error);
+      setCameraPhotoError(
+        error instanceof Error
+          ? error.message
+          : "Gagal upload foto hasil kamera.",
+      );
+    } finally {
+      setCameraPhotoUploading(false);
+    }
+  }
+
+  async function hapusFotoKamera(photo: CameraPhoto) {
+    if (!kameraEditId) return;
+
+    const yakin = window.confirm("Hapus foto ini dari kamera ini?");
+
+    if (!yakin) return;
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session) {
+      setCameraPhotoError("Sesi admin tidak ditemukan.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/kamera/foto", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          photoId: photo.id,
+          cameraId: kameraEditId,
+        }),
+      });
+
+      const hasil = await res.json();
+
+      if (!res.ok) {
+        throw new Error(hasil.error || "Gagal menghapus foto kamera.");
+      }
+
+      await ambilFotoKamera(kameraEditId);
+      alert("Foto berhasil dihapus.");
+    } catch (error) {
+      console.error("Gagal hapus foto kamera:", error);
+      setCameraPhotoError(
+        error instanceof Error ? error.message : "Gagal menghapus foto kamera.",
+      );
+    }
+  }
+
+  async function urutkanFotoKamera(photoId: number, direction: "up" | "down") {
+    if (!kameraEditId) return;
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session) {
+      setCameraPhotoError("Sesi admin tidak ditemukan.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/kamera/foto", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          photoId,
+          cameraId: kameraEditId,
+          direction,
+        }),
+      });
+
+      const hasil = await res.json();
+
+      if (!res.ok) {
+        throw new Error(hasil.error || "Gagal mengatur urutan foto.");
+      }
+
+      await ambilFotoKamera(kameraEditId);
+    } catch (error) {
+      console.error("Gagal urutkan foto kamera:", error);
+      setCameraPhotoError(
+        error instanceof Error ? error.message : "Gagal mengatur urutan foto.",
+      );
+    }
   }
 
   async function simpanKamera(e: React.FormEvent) {
@@ -163,13 +367,10 @@ export default function AdminKameraPage() {
 
       const sessionResult = await supabase.auth.getSession();
 
-      const accessToken =
-        sessionResult.data.session?.access_token;
+      const accessToken = sessionResult.data.session?.access_token;
 
       if (!accessToken) {
-        alert(
-          "Sesi admin tidak ditemukan. Silakan login kembali."
-        );
+        alert("Sesi admin tidak ditemukan. Silakan login kembali.");
 
         setMenyimpan(false);
         return;
@@ -198,10 +399,7 @@ export default function AdminKameraPage() {
         if (error) {
           console.error("Gagal mengubah kamera:", error);
 
-          alert(
-            "Gagal mengubah kamera.\n\n" +
-              error.message
-          );
+          alert("Gagal mengubah kamera.\n\n" + error.message);
 
           setMenyimpan(false);
           return;
@@ -232,8 +430,7 @@ export default function AdminKameraPage() {
 
           alert(
             "Gagal menambah kamera.\n\n" +
-              (error?.message ||
-                "Data kamera tidak berhasil dibuat.")
+              (error?.message || "Data kamera tidak berhasil dibuat."),
           );
 
           setMenyimpan(false);
@@ -252,35 +449,24 @@ export default function AdminKameraPage() {
 
         formData.append("file", gambarFile);
 
-        formData.append(
-          "kameraId",
-          String(kameraId)
-        );
+        formData.append("kameraId", String(kameraId));
 
-        const uploadResponse = await fetch(
-          "/api/admin/kamera/gambar",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-            body: formData,
-          }
-        );
+        const uploadResponse = await fetch("/api/admin/kamera/gambar", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: formData,
+        });
 
-        const uploadResult =
-          await uploadResponse.json();
+        const uploadResult = await uploadResponse.json();
 
         if (!uploadResponse.ok) {
-          console.error(
-            "Gagal upload gambar:",
-            uploadResult
-          );
+          console.error("Gagal upload gambar:", uploadResult);
 
           alert(
             "Data kamera berhasil disimpan, tetapi gambar gagal diupload.\n\n" +
-              (uploadResult.error ||
-                "Terjadi kesalahan saat upload gambar.")
+              (uploadResult.error || "Terjadi kesalahan saat upload gambar."),
           );
         }
       }
@@ -294,7 +480,7 @@ export default function AdminKameraPage() {
       alert(
         modeEdit
           ? "Data kamera berhasil diubah."
-          : "Kamera berhasil ditambahkan."
+          : "Kamera berhasil ditambahkan.",
       );
 
       setMenyimpan(false);
@@ -302,9 +488,7 @@ export default function AdminKameraPage() {
     } catch (error) {
       console.error("Error menyimpan kamera:", error);
 
-      alert(
-        "Terjadi kesalahan saat menyimpan kamera."
-      );
+      alert("Terjadi kesalahan saat menyimpan kamera.");
 
       setMenyimpan(false);
     }
@@ -333,32 +517,26 @@ export default function AdminKameraPage() {
       return;
     }
 
-    const response = await fetch(
-      "/api/admin/kamera/status",
-      {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          id: item.id,
-          aktif: statusBaru,
-        }),
-      }
-    );
+    const response = await fetch("/api/admin/kamera/status", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        id: item.id,
+        aktif: statusBaru,
+      }),
+    });
 
     const hasil = await response.json();
 
     if (!response.ok) {
-      console.error(
-        "Gagal mengubah status kamera:",
-        hasil
-      );
+      console.error("Gagal mengubah status kamera:", hasil);
 
       alert(
         "Gagal mengubah status kamera.\n\n" +
-          (hasil.error || "Terjadi kesalahan.")
+          (hasil.error || "Terjadi kesalahan."),
       );
 
       return;
@@ -376,17 +554,12 @@ export default function AdminKameraPage() {
   return (
     <main className="min-h-screen bg-black px-6 py-10 text-white">
       <div className="mx-auto max-w-7xl">
-
         {/* HEADER */}
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-sm text-yellow-400">
-              Admin
-            </p>
+            <p className="text-sm text-yellow-400">Admin</p>
 
-            <h1 className="text-3xl font-bold">
-              Kelola Kamera
-            </h1>
+            <h1 className="text-3xl font-bold">Kelola Kamera</h1>
 
             <p className="mt-2 text-sm text-gray-400">
               Tambah, edit, dan atur status kamera.
@@ -420,9 +593,7 @@ export default function AdminKameraPage() {
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold">
-                  {modeEdit
-                    ? "Edit Kamera"
-                    : "Tambah Kamera"}
+                  {modeEdit ? "Edit Kamera" : "Tambah Kamera"}
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-400">
@@ -441,10 +612,7 @@ export default function AdminKameraPage() {
               </button>
             </div>
 
-            <form
-              onSubmit={simpanKamera}
-              className="grid gap-5 md:grid-cols-2"
-            >
+            <form onSubmit={simpanKamera} className="grid gap-5 md:grid-cols-2">
               {/* NAMA */}
               <div>
                 <label className="mb-2 block text-sm text-gray-300">
@@ -454,9 +622,7 @@ export default function AdminKameraPage() {
                 <input
                   type="text"
                   value={nama}
-                  onChange={(e) =>
-                    setNama(e.target.value)
-                  }
+                  onChange={(e) => setNama(e.target.value)}
                   placeholder="Contoh: EOS R"
                   className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-white outline-none transition focus:border-yellow-400"
                 />
@@ -471,9 +637,7 @@ export default function AdminKameraPage() {
                 <input
                   type="text"
                   value={brand}
-                  onChange={(e) =>
-                    setBrand(e.target.value)
-                  }
+                  onChange={(e) => setBrand(e.target.value)}
                   placeholder="Contoh: Canon"
                   className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-white outline-none transition focus:border-yellow-400"
                 />
@@ -489,9 +653,7 @@ export default function AdminKameraPage() {
                   type="number"
                   min="0"
                   value={harga}
-                  onChange={(e) =>
-                    setHarga(e.target.value)
-                  }
+                  onChange={(e) => setHarga(e.target.value)}
                   className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-white outline-none transition focus:border-yellow-400"
                 />
 
@@ -502,17 +664,13 @@ export default function AdminKameraPage() {
 
               {/* STOK */}
               <div>
-                <label className="mb-2 block text-sm text-gray-300">
-                  Stok
-                </label>
+                <label className="mb-2 block text-sm text-gray-300">Stok</label>
 
                 <input
                   type="number"
                   min="0"
                   value={stok}
-                  onChange={(e) =>
-                    setStok(e.target.value)
-                  }
+                  onChange={(e) => setStok(e.target.value)}
                   className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-white outline-none transition focus:border-yellow-400"
                 />
               </div>
@@ -527,15 +685,12 @@ export default function AdminKameraPage() {
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
                   onChange={(e) => {
-                    const file =
-                      e.target.files?.[0] || null;
+                    const file = e.target.files?.[0] || null;
 
                     setGambarFile(file);
 
                     if (file) {
-                      setGambarPreview(
-                        URL.createObjectURL(file)
-                      );
+                      setGambarPreview(URL.createObjectURL(file));
                     }
                   }}
                   className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-sm text-gray-300 outline-none file:mr-4 file:rounded-full file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:font-semibold file:text-black hover:file:bg-yellow-300"
@@ -560,6 +715,113 @@ export default function AdminKameraPage() {
                 )}
               </div>
 
+              {modeEdit && kameraEditId && (
+                <div className="md:col-span-2 rounded-2xl border border-gray-800 bg-black/45 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-base font-semibold text-white">
+                        Foto Hasil Kamera
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        Foto ini akan ditampilkan di halaman detail kamera
+                        pelanggan.
+                      </p>
+                    </div>
+                    {cameraPhotoLoading && (
+                      <span className="text-xs text-yellow-400">
+                        Memuat foto…
+                      </span>
+                    )}
+                  </div>
+
+                  {cameraPhotoError && (
+                    <div className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                      {cameraPhotoError}
+                    </div>
+                  )}
+
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {cameraPhotos.length === 0 ? (
+                      <div className="col-span-full rounded-xl border border-dashed border-gray-700 bg-gray-950 px-4 py-6 text-center text-sm text-gray-500">
+                        Belum ada foto hasil kamera. Upload foto pertama untuk
+                        kamera ini.
+                      </div>
+                    ) : (
+                      cameraPhotos.map((photo, index) => (
+                        <div
+                          key={photo.id}
+                          className="group relative overflow-hidden rounded-xl border border-gray-800 bg-gray-950"
+                        >
+                          <img
+                            src={photo.image_url}
+                            alt={`Foto hasil kamera ${index + 1}`}
+                            className="h-28 w-full object-cover"
+                          />
+
+                          <div className="absolute inset-x-0 top-0 flex justify-end gap-1 p-2 opacity-0 transition group-hover:opacity-100">
+                            <button
+                              type="button"
+                              onClick={() => urutkanFotoKamera(photo.id, "up")}
+                              disabled={index === 0}
+                              className="rounded-full bg-black/70 px-2 py-1 text-[10px] text-white disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              ↑
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                urutkanFotoKamera(photo.id, "down")
+                              }
+                              disabled={index === cameraPhotos.length - 1}
+                              className="rounded-full bg-black/70 px-2 py-1 text-[10px] text-white disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              ↓
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => hapusFotoKamera(photo)}
+                              className="rounded-full bg-red-500/80 px-2 py-1 text-[10px] text-white"
+                            >
+                              Hapus
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        if (file) {
+                          setCameraPhotoFile(file);
+                          setCameraPhotoError("");
+                        }
+                      }}
+                      className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-sm text-gray-300 outline-none file:mr-4 file:rounded-full file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:font-semibold file:text-black hover:file:bg-yellow-300"
+                    />
+
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs text-gray-500">
+                        Maksimal 5 MB. Format: JPG, PNG, atau WebP.
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={uploadFotoKamera}
+                        disabled={!cameraPhotoFile || cameraPhotoUploading}
+                        className="rounded-full bg-yellow-400 px-4 py-2 text-xs font-semibold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {cameraPhotoUploading ? "Mengupload…" : "Tambah Foto"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* DESKRIPSI */}
               <div className="md:col-span-2">
                 <label className="mb-2 block text-sm text-gray-300">
@@ -568,9 +830,7 @@ export default function AdminKameraPage() {
 
                 <textarea
                   value={deskripsi}
-                  onChange={(e) =>
-                    setDeskripsi(e.target.value)
-                  }
+                  onChange={(e) => setDeskripsi(e.target.value)}
                   rows={4}
                   placeholder="Masukkan deskripsi atau spesifikasi kamera..."
                   className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-white outline-none transition focus:border-yellow-400"
@@ -584,9 +844,7 @@ export default function AdminKameraPage() {
                     <input
                       type="checkbox"
                       checked={aktif}
-                      onChange={(e) =>
-                        setAktif(e.target.checked)
-                      }
+                      onChange={(e) => setAktif(e.target.checked)}
                       className="h-5 w-5 accent-yellow-400"
                     />
 
@@ -607,8 +865,8 @@ export default function AdminKameraPage() {
                   {menyimpan
                     ? "Menyimpan..."
                     : modeEdit
-                    ? "Simpan Perubahan"
-                    : "Tambah Kamera"}
+                      ? "Simpan Perubahan"
+                      : "Tambah Kamera"}
                 </button>
 
                 <button
@@ -626,9 +884,7 @@ export default function AdminKameraPage() {
         {/* DAFTAR KAMERA */}
         <div className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-950">
           <div className="border-b border-gray-800 p-6">
-            <h2 className="text-xl font-bold">
-              Daftar Kamera
-            </h2>
+            <h2 className="text-xl font-bold">Daftar Kamera</h2>
 
             <p className="mt-1 text-sm text-gray-400">
               Total {kamera.length} kamera
@@ -648,33 +904,19 @@ export default function AdminKameraPage() {
               <table className="w-full min-w-[900px]">
                 <thead>
                   <tr className="border-b border-gray-800 text-left text-sm text-gray-400">
-                    <th className="px-6 py-4">
-                      Gambar
-                    </th>
+                    <th className="px-6 py-4">Gambar</th>
 
-                    <th className="px-6 py-4">
-                      Kamera
-                    </th>
+                    <th className="px-6 py-4">Kamera</th>
 
-                    <th className="px-6 py-4">
-                      Brand
-                    </th>
+                    <th className="px-6 py-4">Brand</th>
 
-                    <th className="px-6 py-4">
-                      Harga
-                    </th>
+                    <th className="px-6 py-4">Harga</th>
 
-                    <th className="px-6 py-4">
-                      Stok
-                    </th>
+                    <th className="px-6 py-4">Stok</th>
 
-                    <th className="px-6 py-4">
-                      Status
-                    </th>
+                    <th className="px-6 py-4">Status</th>
 
-                    <th className="px-6 py-4 text-right">
-                      Aksi
-                    </th>
+                    <th className="px-6 py-4 text-right">Aksi</th>
                   </tr>
                 </thead>
 
@@ -701,9 +943,7 @@ export default function AdminKameraPage() {
 
                       {/* NAMA + DESKRIPSI */}
                       <td className="px-6 py-5">
-                        <div className="font-semibold">
-                          {item.nama}
-                        </div>
+                        <div className="font-semibold">{item.nama}</div>
 
                         {item.deskripsi && (
                           <div className="mt-1 max-w-xs text-xs text-gray-500">
@@ -713,25 +953,19 @@ export default function AdminKameraPage() {
                       </td>
 
                       {/* BRAND */}
-                      <td className="px-6 py-5 text-gray-300">
-                        {item.brand}
-                      </td>
+                      <td className="px-6 py-5 text-gray-300">{item.brand}</td>
 
                       {/* HARGA */}
                       <td className="px-6 py-5 text-gray-300">
                         Rp
-                        {Number(
-                          item.harga_per_hari
-                        ).toLocaleString("id-ID")}
+                        {Number(item.harga_per_hari).toLocaleString("id-ID")}
                       </td>
 
                       {/* STOK */}
                       <td className="px-6 py-5">
                         <span
                           className={
-                            item.stok > 0
-                              ? "text-green-400"
-                              : "text-red-400"
+                            item.stok > 0 ? "text-green-400" : "text-red-400"
                           }
                         >
                           {item.stok}
@@ -756,9 +990,7 @@ export default function AdminKameraPage() {
                         <div className="flex justify-end gap-2">
                           <button
                             type="button"
-                            onClick={() =>
-                              bukaFormEdit(item)
-                            }
+                            onClick={() => bukaFormEdit(item)}
                             className="rounded-full border border-yellow-400 px-4 py-2 text-xs font-semibold text-yellow-400 transition hover:bg-yellow-400 hover:text-black"
                           >
                             Edit
@@ -766,18 +998,14 @@ export default function AdminKameraPage() {
 
                           <button
                             type="button"
-                            onClick={() =>
-                              ubahStatusKamera(item)
-                            }
+                            onClick={() => ubahStatusKamera(item)}
                             className={
                               item.aktif
                                 ? "rounded-full border border-red-500 px-4 py-2 text-xs font-semibold text-red-400 transition hover:bg-red-500 hover:text-white"
                                 : "rounded-full border border-green-500 px-4 py-2 text-xs font-semibold text-green-400 transition hover:bg-green-500 hover:text-white"
                             }
                           >
-                            {item.aktif
-                              ? "Nonaktifkan"
-                              : "Aktifkan"}
+                            {item.aktif ? "Nonaktifkan" : "Aktifkan"}
                           </button>
                         </div>
                       </td>

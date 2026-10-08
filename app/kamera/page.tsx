@@ -6,7 +6,13 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import RentalDatePicker from "@/components/RentalDatePicker";
 import { usePengaturan } from "@/hooks/usePengaturan";
-import { formatRupiah, hitungJumlahHari, JAM_AMBIL, JAM_KEMBALI } from "@/lib/utils";
+import { useBookingStore } from "@/lib/booking-store";
+import {
+  formatRupiah,
+  hitungJumlahHari,
+  JAM_AMBIL,
+  JAM_KEMBALI,
+} from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 
 type Camera = {
@@ -27,6 +33,7 @@ type StokState =
 
 export default function KameraPage() {
   const pengaturan = usePengaturan();
+  const setBooking = useBookingStore((state) => state.setBooking);
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [loadingCameras, setLoadingCameras] = useState(true);
   const [errorCameras, setErrorCameras] = useState("");
@@ -81,36 +88,61 @@ export default function KameraPage() {
           });
           const res = await fetch(`/api/kamera/stok?${params}`);
           const json = await res.json();
-          return { id: cam.id, stok: res.ok ? Number(json.stokTersedia) : cam.stok };
-        })
+          return {
+            id: cam.id,
+            stok: res.ok ? Number(json.stokTersedia) : cam.stok,
+          };
+        }),
       );
 
       const map: Record<number, number> = {};
-      results.forEach((r) => { map[r.id] = r.stok; });
+      results.forEach((r) => {
+        map[r.id] = r.stok;
+      });
       setStokState({ status: "done", data: map });
     } catch {
-      setStokState({ status: "error", message: "Gagal mengecek ketersediaan. Silakan coba lagi." });
+      setStokState({
+        status: "error",
+        message: "Gagal mengecek ketersediaan. Silakan coba lagi.",
+      });
     }
   }, [cameras, tanggalAmbil, tanggalKembali]);
 
   useEffect(() => {
-    async function run() { await cekStok(); }
+    async function run() {
+      await cekStok();
+    }
     run();
   }, [cekStok]);
 
   // Derived data
-  const datesSelected = !!(tanggalAmbil && tanggalKembali && hitungJumlahHari(tanggalAmbil, tanggalKembali) > 0);
+  const datesSelected = !!(
+    tanggalAmbil &&
+    tanggalKembali &&
+    hitungJumlahHari(tanggalAmbil, tanggalKembali) > 0
+  );
 
   function getStok(cam: Camera): number {
     if (stokState.status === "done") return stokState.data[cam.id] ?? cam.stok;
     return cam.stok;
   }
 
-  function buildSewaUrl(cam: Camera): string {
-    const params = new URLSearchParams({ kameraId: String(cam.id) });
-    if (tanggalAmbil) params.set("tanggalAmbil", tanggalAmbil);
-    if (tanggalKembali) params.set("tanggalKembali", tanggalKembali);
-    return `/sewa?${params}`;
+  function buildSewaUrl(): string {
+    return "/sewa";
+  }
+
+  function setSelectedBooking(cam: Camera) {
+    setBooking({
+      cameraId: String(cam.id),
+      tanggalAmbil,
+      tanggalKembali,
+    });
+  }
+
+  function canBookCamera(cam: Camera): boolean {
+    return Boolean(
+      datesSelected && stokState.status === "done" && getStok(cam) > 0,
+    );
   }
 
   function buildDetailUrl(cam: Camera): string {
@@ -168,7 +200,6 @@ export default function KameraPage() {
 
       {/* MAIN CONTENT */}
       <section className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
-
         {/* Loading cameras */}
         {loadingCameras && (
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-10 text-center">
@@ -195,8 +226,12 @@ export default function KameraPage() {
         {!loadingCameras && !errorCameras && cameras.length === 0 && (
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-10 text-center">
             <p className="text-4xl mb-4">📷</p>
-            <p className="font-semibold text-zinc-300">Belum ada kamera tersedia.</p>
-            <p className="mt-2 text-sm text-zinc-500">Silakan kembali lagi nanti.</p>
+            <p className="font-semibold text-zinc-300">
+              Belum ada kamera tersedia.
+            </p>
+            <p className="mt-2 text-sm text-zinc-500">
+              Silakan kembali lagi nanti.
+            </p>
           </div>
         )}
 
@@ -206,7 +241,9 @@ export default function KameraPage() {
             {stokState.status === "loading" && (
               <div className="mb-6 flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 px-5 py-3">
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-600 border-t-yellow-400 flex-shrink-0" />
-                <p className="text-sm text-zinc-400">Mengecek ketersediaan kamera…</p>
+                <p className="text-sm text-zinc-400">
+                  Mengecek ketersediaan kamera…
+                </p>
               </div>
             )}
 
@@ -229,11 +266,16 @@ export default function KameraPage() {
                   <div className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-2.5">
                     <span className="h-2 w-2 rounded-full bg-green-400 flex-shrink-0" />
                     <p className="text-sm text-zinc-400">
-                      <span className="font-semibold text-green-400">{camerasAvailable.length} kamera tersedia</span>
-                      {" "}untuk {jumlahHari} hari yang kamu pilih.
+                      <span className="font-semibold text-green-400">
+                        {camerasAvailable.length} kamera tersedia
+                      </span>{" "}
+                      untuk {jumlahHari} hari yang kamu pilih.
                     </p>
                     <button
-                      onClick={() => { setTanggalAmbil(""); setTanggalKembali(""); }}
+                      onClick={() => {
+                        setTanggalAmbil("");
+                        setTanggalKembali("");
+                      }}
                       className="ml-auto flex-shrink-0 text-xs text-zinc-600 hover:text-zinc-400 transition"
                     >
                       Hapus filter
@@ -242,12 +284,17 @@ export default function KameraPage() {
                 ) : (
                   <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/5 px-6 py-6 text-center">
                     <p className="text-2xl mb-3">📅</p>
-                    <p className="font-semibold text-yellow-400">Semua kamera sedang disewa untuk tanggal ini.</p>
+                    <p className="font-semibold text-yellow-400">
+                      Semua kamera sedang disewa untuk tanggal ini.
+                    </p>
                     <p className="mt-1 text-sm text-zinc-400">
                       Coba pilih tanggal lain untuk melihat ketersediaan.
                     </p>
                     <button
-                      onClick={() => { setTanggalAmbil(""); setTanggalKembali(""); }}
+                      onClick={() => {
+                        setTanggalAmbil("");
+                        setTanggalKembali("");
+                      }}
                       className="mt-4 inline-block rounded-full border border-zinc-700 px-5 py-2 text-sm font-semibold text-zinc-300 transition hover:border-yellow-400 hover:text-yellow-400"
                     >
                       Lihat Semua Kamera
@@ -263,7 +310,9 @@ export default function KameraPage() {
                 {camerasAvailable.map((camera) => {
                   const stok = getStok(camera);
                   const isChecked = stokState.status === "done";
-                  const total = jumlahHari > 0 ? jumlahHari * camera.harga_per_hari : null;
+                  const canBook = canBookCamera(camera);
+                  const total =
+                    jumlahHari > 0 ? jumlahHari * camera.harga_per_hari : null;
 
                   return (
                     <article
@@ -310,11 +359,17 @@ export default function KameraPage() {
                             <p className="text-xs text-zinc-500">Harga sewa</p>
                             <p className="font-semibold text-yellow-400">
                               {formatRupiah(camera.harga_per_hari)}
-                              <span className="text-xs text-zinc-500"> / hari</span>
+                              <span className="text-xs text-zinc-500">
+                                {" "}
+                                / hari
+                              </span>
                             </p>
                             {total !== null && (
                               <p className="mt-0.5 text-xs text-zinc-400">
-                                Estimasi {jumlahHari} hari: <span className="font-semibold text-white">{formatRupiah(total)}</span>
+                                Estimasi {jumlahHari} hari:{" "}
+                                <span className="font-semibold text-white">
+                                  {formatRupiah(total)}
+                                </span>
                               </p>
                             )}
                           </div>
@@ -345,10 +400,28 @@ export default function KameraPage() {
                         {/* CTA */}
                         <div className="mt-4 flex gap-2">
                           <Link
-                            href={buildSewaUrl(camera)}
-                            className="flex-1 rounded-xl bg-yellow-400 px-4 py-2.5 text-center text-sm font-semibold text-black transition hover:bg-yellow-300"
+                            href={canBook ? buildSewaUrl() : "#"}
+                            onClick={(e) => {
+                              if (!canBook) {
+                                e.preventDefault();
+                                return;
+                              }
+                              setSelectedBooking(camera);
+                            }}
+                            aria-disabled={!canBook}
+                            className={`flex-1 rounded-xl px-4 py-2.5 text-center text-sm font-semibold transition ${
+                              canBook
+                                ? "bg-yellow-400 text-black hover:bg-yellow-300"
+                                : "pointer-events-none cursor-not-allowed bg-zinc-800 text-zinc-500"
+                            }`}
                           >
-                            Sewa Sekarang
+                            {!datesSelected
+                              ? "Pilih Tanggal"
+                              : stokState.status === "loading"
+                                ? "Memeriksa…"
+                                : stok <= 0
+                                  ? "Tidak Tersedia"
+                                  : "Sewa Sekarang"}
                           </Link>
                           <Link
                             href={buildDetailUrl(camera)}
@@ -370,7 +443,8 @@ export default function KameraPage() {
                 <div className="mb-4 flex items-center gap-3">
                   <div className="h-px flex-1 bg-zinc-800" />
                   <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600">
-                    Tidak tersedia untuk tanggal ini ({camerasUnavailable.length})
+                    Tidak tersedia untuk tanggal ini (
+                    {camerasUnavailable.length})
                   </p>
                   <div className="h-px flex-1 bg-zinc-800" />
                 </div>
@@ -403,7 +477,8 @@ export default function KameraPage() {
                         </h2>
                         <div className="mt-3 flex items-center justify-between gap-2">
                           <p className="text-xs text-zinc-600">
-                            {formatRupiah(camera.harga_per_hari)}<span> / hari</span>
+                            {formatRupiah(camera.harga_per_hari)}
+                            <span> / hari</span>
                           </p>
                           <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-zinc-500">
                             Tidak tersedia

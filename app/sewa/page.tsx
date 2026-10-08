@@ -7,6 +7,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import RentalDatePicker from "@/components/RentalDatePicker";
 import { usePengaturan } from "@/hooks/usePengaturan";
+import { useBookingStore } from "@/lib/booking-store";
 import {
   formatRupiah,
   formatTanggal,
@@ -82,8 +83,15 @@ function SewaContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pengaturan = usePengaturan();
+  const {
+    cameraId: storedCameraId,
+    tanggalAmbil: storedTanggalAmbil,
+    tanggalKembali: storedTanggalKembali,
+    setBooking,
+    clearBooking,
+  } = useBookingStore();
 
-  // Pre-fill from URL params
+  // Pre-fill from URL params as compatibility fallback for older deep links.
   const kameraIdFromUrl = searchParams.get("kameraId") || "";
   const tanggalAmbilFromUrl = searchParams.get("tanggalAmbil") || "";
   const tanggalKembaliFromUrl = searchParams.get("tanggalKembali") || "";
@@ -106,15 +114,38 @@ function SewaContent() {
   }, []);
 
   // ── Selections (camera + dates) ───────────────────────────────
-  const [kameraId, setKameraId] = useState(kameraIdFromUrl);
-  const [tanggalAmbil, setTanggalAmbil] = useState(tanggalAmbilFromUrl);
-  const [tanggalKembali, setTanggalKembali] = useState(tanggalKembaliFromUrl);
+  const [kameraId, setKameraId] = useState(storedCameraId || kameraIdFromUrl);
+  const [tanggalAmbil, setTanggalAmbil] = useState(
+    storedTanggalAmbil || tanggalAmbilFromUrl,
+  );
+  const [tanggalKembali, setTanggalKembali] = useState(
+    storedTanggalKembali || tanggalKembaliFromUrl,
+  );
   const [jumlah, setJumlah] = useState(1);
+
+  useEffect(() => {
+    if (storedCameraId) setKameraId(storedCameraId);
+    if (storedTanggalAmbil) setTanggalAmbil(storedTanggalAmbil);
+    if (storedTanggalKembali) setTanggalKembali(storedTanggalKembali);
+  }, [storedCameraId, storedTanggalAmbil, storedTanggalKembali]);
+
+  useEffect(() => {
+    setBooking({
+      cameraId: kameraId,
+      tanggalAmbil,
+      tanggalKembali,
+    });
+  }, [kameraId, tanggalAmbil, tanggalKembali, setBooking]);
 
   // Inline date-edit toggle
   const [editingDates, setEditingDates] = useState(
-    !tanggalAmbilFromUrl || !tanggalKembaliFromUrl
+    !(storedTanggalAmbil && storedTanggalKembali) &&
+      !(tanggalAmbilFromUrl && tanggalKembaliFromUrl),
   );
+
+  useEffect(() => {
+    if (tanggalAmbil && tanggalKembali) setEditingDates(false);
+  }, [tanggalAmbil, tanggalKembali]);
 
   // ── Customer form fields ──────────────────────────────────────
   const [nama, setNama] = useState("");
@@ -123,11 +154,16 @@ function SewaContent() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [stokStatus, setStokStatus] = useState<{
+    status: "idle" | "loading" | "available" | "unavailable" | "error";
+    stok?: number;
+    message?: string;
+  }>({ status: "idle" });
 
   // ── Derived ───────────────────────────────────────────────────
   const kameraTerpilih = useMemo(
     () => daftarKamera.find((c) => String(c.id) === String(kameraId)) ?? null,
-    [daftarKamera, kameraId]
+    [daftarKamera, kameraId],
   );
 
   // Clamp jumlah at render time (derived — no effect needed)
@@ -140,15 +176,94 @@ function SewaContent() {
   const hargaPerHari = kameraTerpilih?.harga_per_hari ?? 0;
   const totalHarga = jumlahHari * jumlahEfektif * hargaPerHari;
   const datesValid = jumlahHari > 0;
+  const bookingReady =
+    !!kameraTerpilih &&
+    !!tanggalAmbil &&
+    !!tanggalKembali &&
+    datesValid &&
+    jumlahEfektif >= 1 &&
+    stokStatus.status === "available";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function cekKetersediaan() {
+      if (!kameraTerpilih || !tanggalAmbil || !tanggalKembali) {
+        setStokStatus({ status: "idle" });
+        return;
+      }
+
+      if (hitungJumlahHari(tanggalAmbil, tanggalKembali) <= 0) {
+        setStokStatus({ status: "idle" });
+        return;
+      }
+
+      setStokStatus({ status: "loading" });
+
+      try {
+        const params = new URLSearchParams({
+          kameraId: String(kameraTerpilih.id),
+          tanggalAmbil,
+          jamAmbil: JAM_AMBIL,
+          tanggalKembali,
+          jamKembali: JAM_KEMBALI,
+        });
+
+        const res = await fetch(`/api/kamera/stok?${params}`);
+        const json = await res.json();
+
+        if (cancelled) return;
+
+        if (!res.ok) {
+          setStokStatus({
+            status: "error",
+            message: json.error || "Gagal mengecek ketersediaan kamera.",
+          });
+          return;
+        }
+
+        const stokTersedia = Number(json.stokTersedia ?? 0);
+        setStokStatus(
+          stokTersedia > 0
+            ? { status: "available", stok: stokTersedia }
+            : {
+                status: "unavailable",
+                message: "Kamera tidak tersedia untuk periode yang dipilih.",
+              },
+        );
+      } catch {
+        if (!cancelled) {
+          setStokStatus({
+            status: "error",
+            message: "Tidak dapat mengecek ketersediaan kamera saat ini.",
+          });
+        }
+      }
+    }
+
+    cekKetersediaan();
+    return () => {
+      cancelled = true;
+    };
+  }, [kameraTerpilih, tanggalAmbil, tanggalKembali]);
 
   // ── Submission ────────────────────────────────────────────────
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
 
-    if (!nama.trim()) { setError("Nama lengkap wajib diisi."); return; }
-    if (!whatsapp.trim()) { setError("Nomor WhatsApp wajib diisi."); return; }
-    if (!kameraId) { setError("Silakan pilih kamera terlebih dahulu."); return; }
+    if (!nama.trim()) {
+      setError("Nama lengkap wajib diisi.");
+      return;
+    }
+    if (!whatsapp.trim()) {
+      setError("Nomor WhatsApp wajib diisi.");
+      return;
+    }
+    if (!kameraId) {
+      setError("Silakan pilih kamera terlebih dahulu.");
+      return;
+    }
     if (!tanggalAmbil || !tanggalKembali) {
       setError("Tanggal pengambilan dan pengembalian wajib diisi.");
       return;
@@ -157,8 +272,31 @@ function SewaContent() {
       setError("Tanggal kembali harus setelah tanggal ambil.");
       return;
     }
-    if (jumlahEfektif < 1) { setError("Jumlah kamera minimal 1."); return; }
-    if (!kameraTerpilih) { setError("Data kamera tidak ditemukan."); return; }
+    if (jumlahEfektif < 1) {
+      setError("Jumlah kamera minimal 1.");
+      return;
+    }
+    if (!kameraTerpilih) {
+      setError("Data kamera tidak ditemukan.");
+      return;
+    }
+    if (stokStatus.status === "loading") {
+      setError("Sedang mengecek ketersediaan. Silakan tunggu sebentar.");
+      return;
+    }
+    if (stokStatus.status === "unavailable") {
+      setError(
+        "Kamera tidak tersedia untuk tanggal yang dipilih. Silakan pilih periode lain.",
+      );
+      return;
+    }
+    if (stokStatus.status === "error") {
+      setError(
+        stokStatus.message ||
+          "Tidak dapat melanjutkan karena ketersediaan belum terkonfirmasi.",
+      );
+      return;
+    }
 
     try {
       setLoading(true);
@@ -187,8 +325,9 @@ function SewaContent() {
         return;
       }
 
+      clearBooking();
       router.push(
-        `/pembayaran?pesanan=${encodeURIComponent(data.nomorPesanan)}&total=${data.totalHarga}`
+        `/pembayaran?pesanan=${encodeURIComponent(data.nomorPesanan)}&total=${data.totalHarga}`,
       );
     } catch {
       setError("Tidak dapat terhubung ke server. Silakan coba lagi.");
@@ -199,6 +338,12 @@ function SewaContent() {
 
   const inputClass =
     "w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white text-sm outline-none transition focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400/30";
+
+  useEffect(() => {
+    return () => {
+      clearBooking();
+    };
+  }, [clearBooking]);
 
   // ── Render ────────────────────────────────────────────────────
   return (
@@ -222,11 +367,16 @@ function SewaContent() {
       {/* BREADCRUMB PROGRESS */}
       <div className="border-b border-zinc-900">
         <div className="mx-auto flex max-w-5xl items-center gap-0 px-6 py-3 text-xs">
-          <Link href="/kamera" className="text-zinc-500 hover:text-yellow-400 transition">
+          <Link
+            href="/kamera"
+            className="text-zinc-500 hover:text-yellow-400 transition"
+          >
             Pilih Kamera
           </Link>
           <span className="mx-2 text-zinc-700">›</span>
-          <span className="font-semibold text-yellow-400">Tinjau &amp; Pesan</span>
+          <span className="font-semibold text-yellow-400">
+            Tinjau &amp; Pesan
+          </span>
           <span className="mx-2 text-zinc-700">›</span>
           <span className="text-zinc-600">Pembayaran</span>
         </div>
@@ -236,10 +386,8 @@ function SewaContent() {
       <section className="flex-1">
         <form onSubmit={handleSubmit}>
           <div className="mx-auto grid max-w-5xl gap-8 px-6 py-10 lg:grid-cols-3">
-
             {/* ── LEFT — review sections + customer form ──── */}
             <div className="space-y-6 lg:col-span-2">
-
               {/* ─ SECTION 1: Camera selection ─ */}
               <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 md:p-7">
                 <div className="flex items-center justify-between">
@@ -335,8 +483,8 @@ function SewaContent() {
                         setJumlah(
                           Math.min(
                             kameraTerpilih.stok,
-                            Math.max(1, Number(e.target.value))
-                          )
+                            Math.max(1, Number(e.target.value)),
+                          ),
                         )
                       }
                       className={`${inputClass} max-w-[120px]`}
@@ -370,14 +518,18 @@ function SewaContent() {
                       <span className="text-zinc-500">Tanggal ambil</span>
                       <span className="font-semibold">
                         {formatTanggal(tanggalAmbil)},{" "}
-                        <span className="text-zinc-400 font-normal">pukul 08.00</span>
+                        <span className="text-zinc-400 font-normal">
+                          pukul 08.00
+                        </span>
                       </span>
                     </div>
                     <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm">
                       <span className="text-zinc-500">Tanggal kembali</span>
                       <span className="font-semibold">
                         {formatTanggal(tanggalKembali)},{" "}
-                        <span className="text-zinc-400 font-normal">pukul 21.00</span>
+                        <span className="text-zinc-400 font-normal">
+                          pukul 21.00
+                        </span>
                       </span>
                     </div>
                     <div className="flex items-center justify-between rounded-xl border border-yellow-400/15 bg-yellow-400/5 px-4 py-3 text-sm">
@@ -451,7 +603,9 @@ function SewaContent() {
                   <div>
                     <label className="mb-1.5 block text-sm font-medium">
                       Email{" "}
-                      <span className="text-zinc-500 font-normal">(opsional)</span>
+                      <span className="text-zinc-500 font-normal">
+                        (opsional)
+                      </span>
                     </label>
                     <input
                       type="email"
@@ -516,13 +670,45 @@ function SewaContent() {
                     <span>{jumlahHari > 0 ? `${jumlahHari} hari` : "—"}</span>
                   </div>
 
+                  {datesValid && (
+                    <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2">
+                      {stokStatus.status === "loading" && (
+                        <p className="text-xs text-zinc-400">
+                          Mengecek ketersediaan kamera…
+                        </p>
+                      )}
+                      {stokStatus.status === "available" && (
+                        <p className="text-xs text-green-400">
+                          Tersedia untuk periode ini
+                          {stokStatus.stok !== undefined
+                            ? ` — sisa ${stokStatus.stok} unit`
+                            : ""}
+                        </p>
+                      )}
+                      {stokStatus.status === "unavailable" && (
+                        <p className="text-xs text-red-400">
+                          {stokStatus.message ||
+                            "Kamera tidak tersedia untuk tanggal ini."}
+                        </p>
+                      )}
+                      {stokStatus.status === "error" && (
+                        <p className="text-xs text-yellow-400">
+                          {stokStatus.message ||
+                            "Tidak dapat mengecek ketersediaan."}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   {/* Price breakdown */}
                   {jumlahHari > 0 && hargaPerHari > 0 && (
                     <div className="border-t border-zinc-800 pt-3 space-y-2">
                       <div className="flex justify-between text-zinc-400">
                         <span>
                           {formatRupiah(hargaPerHari)}
-                          {jumlahEfektif > 1 ? ` × ${jumlahEfektif}` : ""} × {jumlahHari} hari
+                          {jumlahEfektif > 1
+                            ? ` × ${jumlahEfektif}`
+                            : ""} × {jumlahHari} hari
                         </span>
                         <span className="font-semibold text-white">
                           {formatRupiah(totalHarga)}
@@ -551,10 +737,18 @@ function SewaContent() {
                 {/* Submit */}
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !bookingReady}
                   className="mt-5 w-full rounded-full bg-yellow-400 px-5 py-3 font-semibold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {loading ? "Memproses…" : "Lanjut ke Pembayaran →"}
+                  {loading
+                    ? "Memproses…"
+                    : stokStatus.status === "loading"
+                      ? "Memeriksa Ketersediaan…"
+                      : stokStatus.status === "unavailable"
+                        ? "Kamera Tidak Tersedia"
+                        : stokStatus.status === "error"
+                          ? "Ketersediaan Belum Terkonfirmasi"
+                          : "Lanjut ke Pembayaran →"}
                 </button>
 
                 <p className="mt-3 text-center text-xs text-zinc-600">
@@ -562,7 +756,6 @@ function SewaContent() {
                 </p>
               </div>
             </div>
-
           </div>
         </form>
       </section>
