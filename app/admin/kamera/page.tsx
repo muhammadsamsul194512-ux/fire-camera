@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { PhotoLightbox } from "@/components/PhotoLightbox";
+import { notify } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase";
 
 type Camera = {
@@ -22,6 +24,12 @@ type CameraPhoto = {
   storage_path: string;
   sort_order: number;
   created_at: string;
+};
+
+type PendingPhotoFile = {
+  id: string;
+  file: File;
+  previewUrl: string;
 };
 
 export default function AdminKameraPage() {
@@ -50,8 +58,24 @@ export default function AdminKameraPage() {
   const [cameraPhotoError, setCameraPhotoError] = useState("");
   const [cameraPhotoUploading, setCameraPhotoUploading] = useState(false);
   const [cameraPhotoFile, setCameraPhotoFile] = useState<File | null>(null);
+  const [pendingPhotoFiles, setPendingPhotoFiles] = useState<PendingPhotoFile[]>([]);
+  const [pendingUploadProgress, setPendingUploadProgress] = useState("");
+  const [photoViewerIndex, setPhotoViewerIndex] = useState<number | null>(null);
 
   const formRef = useRef<HTMLDivElement>(null);
+  const pendingPhotoUrlsRef = useRef<PendingPhotoFile[]>([]);
+
+  useEffect(() => {
+    pendingPhotoUrlsRef.current = pendingPhotoFiles;
+  }, [pendingPhotoFiles]);
+
+  useEffect(() => {
+    return () => {
+      pendingPhotoUrlsRef.current.forEach((item) => {
+        URL.revokeObjectURL(item.previewUrl);
+      });
+    };
+  }, []);
 
   async function ambilKamera() {
     setLoading(true);
@@ -63,7 +87,7 @@ export default function AdminKameraPage() {
       } = await supabase.auth.getSession();
 
       if (sessionError || !session) {
-        alert("Kamu harus login sebagai admin.");
+        notify.error("Kamu harus login sebagai admin.", "Silakan masuk ulang sebelum melanjutkan.");
         setLoading(false);
         return;
       }
@@ -80,7 +104,7 @@ export default function AdminKameraPage() {
       if (!response.ok) {
         console.error("Gagal mengambil kamera:", hasil);
 
-        alert(hasil.error || "Gagal mengambil data kamera.");
+        notify.error("Gagal mengambil data kamera.", hasil.error || "Terjadi kesalahan saat memuat kamera.");
 
         setLoading(false);
         return;
@@ -90,7 +114,7 @@ export default function AdminKameraPage() {
     } catch (error) {
       console.error("Error mengambil kamera:", error);
 
-      alert("Terjadi kesalahan saat mengambil data kamera.");
+      notify.error("Terjadi kesalahan saat mengambil data kamera.");
     } finally {
       setLoading(false);
     }
@@ -99,6 +123,15 @@ export default function AdminKameraPage() {
   useEffect(() => {
     ambilKamera();
   }, [router]);
+
+  function clearPendingPhotos() {
+    pendingPhotoUrlsRef.current.forEach((item) => {
+      URL.revokeObjectURL(item.previewUrl);
+    });
+    pendingPhotoUrlsRef.current = [];
+    setPendingPhotoFiles([]);
+    setPendingUploadProgress("");
+  }
 
   function resetForm() {
     setNama("");
@@ -110,6 +143,8 @@ export default function AdminKameraPage() {
 
     setGambarFile(null);
     setGambarPreview(null);
+    setCameraPhotoFile(null);
+    clearPendingPhotos();
 
     setModeEdit(false);
     setKameraEditId(null);
@@ -158,6 +193,7 @@ export default function AdminKameraPage() {
   function tutupForm() {
     setTampilForm(false);
     setCameraPhotos([]);
+    clearPendingPhotos();
     resetForm();
   }
 
@@ -204,8 +240,12 @@ export default function AdminKameraPage() {
   }
 
   async function uploadFotoKamera() {
-    if (!kameraEditId || !cameraPhotoFile) {
-      setCameraPhotoError("Pilih foto hasil kamera terlebih dahulu.");
+    if (!kameraEditId || pendingPhotoFiles.length === 0) {
+      setCameraPhotoError("Pilih minimal satu foto hasil kamera untuk diupload.");
+      notify.warning(
+        "Belum ada foto yang dipilih.",
+        "Pilih beberapa foto lalu klik upload."
+      );
       return;
     }
 
@@ -216,44 +256,75 @@ export default function AdminKameraPage() {
 
     if (sessionError || !session) {
       setCameraPhotoError("Sesi admin tidak ditemukan.");
+      notify.error(
+        "Sesi admin tidak ditemukan.",
+        "Silakan login ulang dan coba lagi."
+      );
       return;
     }
 
     setCameraPhotoUploading(true);
     setCameraPhotoError("");
+    setPendingUploadProgress("0/" + pendingPhotoFiles.length);
+
+    const failedUploads: string[] = [];
 
     try {
-      const formData = new FormData();
-      formData.append("file", cameraPhotoFile);
-      formData.append("cameraId", String(kameraEditId));
+      for (let index = 0; index < pendingPhotoFiles.length; index += 1) {
+        const item = pendingPhotoFiles[index];
+        setPendingUploadProgress(`${index + 1}/${pendingPhotoFiles.length}`);
 
-      const res = await fetch("/api/admin/kamera/foto", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: formData,
-      });
+        const formData = new FormData();
+        formData.append("file", item.file);
+        formData.append("cameraId", String(kameraEditId));
 
-      const hasil = await res.json();
+        const res = await fetch("/api/admin/kamera/foto", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: formData,
+        });
 
-      if (!res.ok) {
-        throw new Error(hasil.error || "Gagal upload foto hasil kamera.");
+        const hasil = await res.json();
+
+        if (!res.ok) {
+          failedUploads.push(item.file.name);
+          console.error("Gagal upload foto hasil kamera:", hasil);
+          continue;
+        }
       }
 
       setCameraPhotoFile(null);
       setCameraPhotoError("");
+      clearPendingPhotos();
       await ambilFotoKamera(kameraEditId);
-      alert("Foto hasil kamera berhasil ditambahkan.");
+
+      if (failedUploads.length > 0) {
+        notify.warning(
+          "Beberapa foto gagal diupload.",
+          `${failedUploads.length} file gagal: ${failedUploads.join(", ")}`
+        );
+      } else {
+        notify.success(
+          "Foto hasil kamera berhasil ditambahkan.",
+          `${pendingPhotoFiles.length} foto berhasil disimpan.`
+        );
+      }
     } catch (error) {
       console.error("Gagal upload foto hasil kamera:", error);
       setCameraPhotoError(
         error instanceof Error
           ? error.message
-          : "Gagal upload foto hasil kamera.",
+          : "Gagal upload foto hasil kamera."
+      );
+      notify.error(
+        "Upload foto gagal.",
+        error instanceof Error ? error.message : "Coba lagi setelah beberapa saat."
       );
     } finally {
       setCameraPhotoUploading(false);
+      setPendingUploadProgress("");
     }
   }
 
@@ -294,7 +365,7 @@ export default function AdminKameraPage() {
       }
 
       await ambilFotoKamera(kameraEditId);
-      alert("Foto berhasil dihapus.");
+      notify.success("Foto berhasil dihapus.");
     } catch (error) {
       console.error("Gagal hapus foto kamera:", error);
       setCameraPhotoError(
@@ -345,16 +416,60 @@ export default function AdminKameraPage() {
     }
   }
 
+  function handlePendingPhotoSelection(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files || []);
+
+    if (files.length === 0) return;
+
+    const validFiles: PendingPhotoFile[] = [];
+    const invalidFiles: string[] = [];
+
+    files.forEach((file) => {
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        invalidFiles.push(`${file.name} (format tidak didukung)`);
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        invalidFiles.push(`${file.name} (melebihi 5 MB)`);
+        return;
+      }
+
+      validFiles.push({
+        id: `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+      });
+    });
+
+    if (invalidFiles.length > 0) {
+      notify.warning(
+        "Beberapa foto tidak bisa ditambahkan.",
+        invalidFiles.join(", ")
+      );
+    }
+
+    if (validFiles.length > 0) {
+      setPendingPhotoFiles((previous) => [...previous, ...validFiles]);
+      notify.info(
+        `${validFiles.length} foto siap diupload.`,
+        "Cek kembali pratinjau sebelum menyimpan."
+      );
+    }
+
+    event.target.value = "";
+  }
+
   async function simpanKamera(e: React.FormEvent) {
     e.preventDefault();
 
     if (!nama.trim() || !brand.trim()) {
-      alert("Nama dan brand kamera wajib diisi.");
+      notify.warning("Nama dan brand kamera wajib diisi.");
       return;
     }
 
     if (Number(harga) < 0 || Number(stok) < 0) {
-      alert("Harga dan stok tidak boleh kurang dari 0.");
+      notify.warning("Harga dan stok tidak boleh kurang dari 0.");
       return;
     }
 
@@ -370,7 +485,10 @@ export default function AdminKameraPage() {
       const accessToken = sessionResult.data.session?.access_token;
 
       if (!accessToken) {
-        alert("Sesi admin tidak ditemukan. Silakan login kembali.");
+        notify.error(
+          "Sesi admin tidak ditemukan.",
+          "Silakan login ulang dan coba lagi."
+        );
 
         setMenyimpan(false);
         return;
@@ -399,7 +517,7 @@ export default function AdminKameraPage() {
         if (error) {
           console.error("Gagal mengubah kamera:", error);
 
-          alert("Gagal mengubah kamera.\n\n" + error.message);
+          notify.error("Gagal mengubah kamera.", error.message);
 
           setMenyimpan(false);
           return;
@@ -428,9 +546,9 @@ export default function AdminKameraPage() {
         if (error || !data) {
           console.error("Gagal menambah kamera:", error);
 
-          alert(
-            "Gagal menambah kamera.\n\n" +
-              (error?.message || "Data kamera tidak berhasil dibuat."),
+          notify.error(
+            "Gagal menambah kamera.",
+            error?.message || "Data kamera tidak berhasil dibuat."
           );
 
           setMenyimpan(false);
@@ -464,9 +582,9 @@ export default function AdminKameraPage() {
         if (!uploadResponse.ok) {
           console.error("Gagal upload gambar:", uploadResult);
 
-          alert(
-            "Data kamera berhasil disimpan, tetapi gambar gagal diupload.\n\n" +
-              (uploadResult.error || "Terjadi kesalahan saat upload gambar."),
+          notify.warning(
+            "Data kamera tersimpan, tetapi gambar utama gagal diupload.",
+            uploadResult.error || "Terjadi kesalahan saat upload gambar utama."
           );
         }
       }
@@ -477,10 +595,8 @@ export default function AdminKameraPage() {
 
       await ambilKamera();
 
-      alert(
-        modeEdit
-          ? "Data kamera berhasil diubah."
-          : "Kamera berhasil ditambahkan.",
+      notify.success(
+        modeEdit ? "Data kamera berhasil diubah." : "Kamera berhasil ditambahkan."
       );
 
       setMenyimpan(false);
@@ -488,7 +604,7 @@ export default function AdminKameraPage() {
     } catch (error) {
       console.error("Error menyimpan kamera:", error);
 
-      alert("Terjadi kesalahan saat menyimpan kamera.");
+      notify.error("Terjadi kesalahan saat menyimpan kamera.");
 
       setMenyimpan(false);
     }
@@ -534,9 +650,9 @@ export default function AdminKameraPage() {
     if (!response.ok) {
       console.error("Gagal mengubah status kamera:", hasil);
 
-      alert(
-        "Gagal mengubah status kamera.\n\n" +
-          (hasil.error || "Terjadi kesalahan."),
+      notify.error(
+        "Gagal mengubah status kamera.",
+        hasil.error || "Terjadi kesalahan."
       );
 
       return;
@@ -545,15 +661,22 @@ export default function AdminKameraPage() {
     await ambilKamera();
 
     if (statusBaru) {
-      alert("Kamera berhasil diaktifkan kembali.");
+      notify.success("Kamera berhasil diaktifkan kembali.");
     } else {
-      alert("Kamera berhasil dinonaktifkan.");
+      notify.info("Kamera berhasil dinonaktifkan.", "Kamera tidak akan tampil untuk pelanggan.");
     }
   }
 
   return (
     <main className="min-h-screen bg-black px-6 py-10 text-white">
       <div className="mx-auto max-w-7xl">
+        <PhotoLightbox
+          images={cameraPhotos.map((photo) => photo.image_url)}
+          open={photoViewerIndex !== null}
+          initialIndex={photoViewerIndex ?? 0}
+          onClose={() => setPhotoViewerIndex(null)}
+          altPrefix="Foto sample"
+        />
         {/* HEADER */}
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
@@ -748,9 +871,11 @@ export default function AdminKameraPage() {
                       </div>
                     ) : (
                       cameraPhotos.map((photo, index) => (
-                        <div
+                        <button
                           key={photo.id}
-                          className="group relative overflow-hidden rounded-xl border border-gray-800 bg-gray-950"
+                          type="button"
+                          onClick={() => setPhotoViewerIndex(index)}
+                          className="group relative overflow-hidden rounded-xl border border-gray-800 bg-gray-950 text-left"
                         >
                           <img
                             src={photo.image_url}
@@ -761,7 +886,10 @@ export default function AdminKameraPage() {
                           <div className="absolute inset-x-0 top-0 flex justify-end gap-1 p-2 opacity-0 transition group-hover:opacity-100">
                             <button
                               type="button"
-                              onClick={() => urutkanFotoKamera(photo.id, "up")}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                urutkanFotoKamera(photo.id, "up");
+                              }}
                               disabled={index === 0}
                               className="rounded-full bg-black/70 px-2 py-1 text-[10px] text-white disabled:cursor-not-allowed disabled:opacity-40"
                             >
@@ -769,9 +897,10 @@ export default function AdminKameraPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={() =>
-                                urutkanFotoKamera(photo.id, "down")
-                              }
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                urutkanFotoKamera(photo.id, "down");
+                              }}
                               disabled={index === cameraPhotos.length - 1}
                               className="rounded-full bg-black/70 px-2 py-1 text-[10px] text-white disabled:cursor-not-allowed disabled:opacity-40"
                             >
@@ -779,13 +908,16 @@ export default function AdminKameraPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => hapusFotoKamera(photo)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                hapusFotoKamera(photo);
+                              }}
                               className="rounded-full bg-red-500/80 px-2 py-1 text-[10px] text-white"
                             >
                               Hapus
                             </button>
                           </div>
-                        </div>
+                        </button>
                       ))
                     )}
                   </div>
@@ -794,28 +926,67 @@ export default function AdminKameraPage() {
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        if (file) {
-                          setCameraPhotoFile(file);
-                          setCameraPhotoError("");
-                        }
-                      }}
+                      multiple
+                      onChange={handlePendingPhotoSelection}
                       className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-sm text-gray-300 outline-none file:mr-4 file:rounded-full file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:font-semibold file:text-black hover:file:bg-yellow-300"
                     />
 
+                    {pendingPhotoFiles.length > 0 && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-3 text-xs text-gray-400">
+                          <span>Pratinjau foto siap upload: {pendingPhotoFiles.length}</span>
+                          <button
+                            type="button"
+                            onClick={clearPendingPhotos}
+                            className="text-yellow-400 underline hover:text-yellow-300"
+                          >
+                            Bersihkan
+                          </button>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          {pendingPhotoFiles.map((item, index) => (
+                            <div
+                              key={item.id}
+                              className="group relative overflow-hidden rounded-xl border border-gray-800 bg-gray-950"
+                            >
+                              <img
+                                src={item.previewUrl}
+                                alt={`Pratinjau foto ${index + 1}`}
+                                className="h-24 w-full object-cover"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  URL.revokeObjectURL(item.previewUrl);
+                                  setPendingPhotoFiles((previous) =>
+                                    previous.filter((pending) => pending.id !== item.id),
+                                  );
+                                }}
+                                className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-1 text-[10px] text-white"
+                              >
+                                Hapus
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-xs text-gray-500">
-                        Maksimal 5 MB. Format: JPG, PNG, atau WebP.
+                        Maksimal 5 MB per foto. Format: JPG, PNG, atau WebP.
                       </p>
 
                       <button
                         type="button"
                         onClick={uploadFotoKamera}
-                        disabled={!cameraPhotoFile || cameraPhotoUploading}
+                        disabled={pendingPhotoFiles.length === 0 || cameraPhotoUploading}
                         className="rounded-full bg-yellow-400 px-4 py-2 text-xs font-semibold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {cameraPhotoUploading ? "Mengupload…" : "Tambah Foto"}
+                        {cameraPhotoUploading
+                          ? `Mengupload${pendingUploadProgress ? ` ${pendingUploadProgress}` : "..."}`
+                          : "Upload Foto"}
                       </button>
                     </div>
                   </div>

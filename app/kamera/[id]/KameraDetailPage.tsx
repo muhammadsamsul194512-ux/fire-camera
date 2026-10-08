@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { PhotoLightbox } from "@/components/PhotoLightbox";
 import RentalDatePicker from "@/components/RentalDatePicker";
 import { usePengaturan } from "@/hooks/usePengaturan";
 import { useBookingStore } from "@/lib/booking-store";
@@ -55,6 +56,7 @@ export default function KameraDetailPage() {
   const [loadingCamera, setLoadingCamera] = useState(true);
   const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [errorCamera, setErrorCamera] = useState("");
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   const [tanggalAmbil, setTanggalAmbil] = useState(
     searchParams.get("tanggalAmbil") || "",
@@ -343,16 +345,18 @@ export default function KameraDetailPage() {
                   ) : cameraPhotos.length > 0 ? (
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                       {cameraPhotos.map((photo, index) => (
-                        <div
+                        <button
                           key={photo.id}
-                          className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950"
+                          type="button"
+                          onClick={() => setViewerIndex(index)}
+                          className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 text-left transition hover:border-yellow-400/60"
                         >
                           <img
                             src={photo.image_url}
                             alt={`Foto hasil kamera ${index + 1}`}
                             className="aspect-[4/3] w-full object-cover transition duration-200 hover:scale-[1.02]"
                           />
-                        </div>
+                        </button>
                       ))}
                     </div>
                   ) : (
@@ -551,6 +555,14 @@ export default function KameraDetailPage() {
           </>
         )}
       </main>
+
+      <PhotoLightbox
+        images={cameraPhotos.map((photo) => photo.image_url)}
+        open={viewerIndex !== null}
+        initialIndex={viewerIndex ?? 0}
+        onClose={() => setViewerIndex(null)}
+        altPrefix="Foto sample"
+      />
 
       <Footer namaToko={pengaturan.nama_toko} whatsapp={pengaturan.whatsapp} />
     </div>
