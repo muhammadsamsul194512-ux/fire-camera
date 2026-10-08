@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { StatusBadge } from "@/components/admin/StatusBadge";
 import { supabase } from "@/lib/supabase";
 
 type Camera = {
@@ -15,31 +16,27 @@ type Camera = {
   aktif: boolean;
 };
 
+function formatRupiah(value: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+}
+
 export default function AdminKameraPage() {
   const router = useRouter();
-
   const [kamera, setKamera] = useState<Camera[]>([]);
   const [loading, setLoading] = useState(true);
-  const [menyimpan, setMenyimpan] = useState(false);
-
-  const [tampilForm, setTampilForm] = useState(false);
-  const [modeEdit, setModeEdit] = useState(false);
-  const [kameraEditId, setKameraEditId] = useState<number | null>(null);
-
-  const [nama, setNama] = useState("");
-  const [brand, setBrand] = useState("");
-  const [deskripsi, setDeskripsi] = useState("");
-  const [harga, setHarga] = useState("50000");
-  const [stok, setStok] = useState("1");
-  const [aktif, setAktif] = useState(true);
-
-  const [gambarFile, setGambarFile] = useState<File | null>(null);
-  const [gambarPreview, setGambarPreview] = useState<string | null>(null);
-
-  const formRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "active" | "inactive"
+  >("all");
 
   async function ambilKamera() {
     setLoading(true);
+    setError("");
 
     try {
       const {
@@ -48,8 +45,7 @@ export default function AdminKameraPage() {
       } = await supabase.auth.getSession();
 
       if (sessionError || !session) {
-        alert("Kamu harus login sebagai admin.");
-        setLoading(false);
+        router.replace("/admin/login");
         return;
       }
 
@@ -61,349 +57,109 @@ export default function AdminKameraPage() {
       });
 
       const hasil = await response.json();
-
       if (!response.ok) {
-        console.error("Gagal mengambil kamera:", hasil);
-
-        alert(hasil.error || "Gagal mengambil data kamera.");
-
-        setLoading(false);
+        setError(hasil.error || "Gagal mengambil data kamera.");
         return;
       }
 
       setKamera(hasil.data || []);
     } catch (error) {
       console.error("Error mengambil kamera:", error);
-
-      alert("Terjadi kesalahan saat mengambil data kamera.");
+      setError("Terjadi kesalahan saat mengambil data kamera.");
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => {
-    ambilKamera();
-  }, [router]);
+  async function ubahStatusKamera(item: Camera) {
+    const statusBaru = !item.aktif;
+    const yakin = window.confirm(
+      statusBaru
+        ? `Aktifkan kembali kamera "${item.brand} ${item.nama}"?`
+        : `Nonaktifkan kamera "${item.brand} ${item.nama}"? Kamera tidak akan ditampilkan kepada pelanggan.`,
+    );
 
-  function resetForm() {
-    setNama("");
-    setBrand("");
-    setDeskripsi("");
-    setHarga("50000");
-    setStok("1");
-    setAktif(true);
-
-    setGambarFile(null);
-    setGambarPreview(null);
-
-    setModeEdit(false);
-    setKameraEditId(null);
-  }
-
-  function bukaFormTambah() {
-    resetForm();
-    setTampilForm(true);
-
-    setTimeout(() => {
-      formRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 100);
-  }
-
-  function bukaFormEdit(item: Camera) {
-    setModeEdit(true);
-    setKameraEditId(item.id);
-
-    setNama(item.nama);
-    setBrand(item.brand);
-    setDeskripsi(item.deskripsi || "");
-    setHarga(String(item.harga_per_hari));
-    setStok(String(item.stok));
-    setAktif(item.aktif);
-
-    setGambarFile(null);
-    setGambarPreview(item.gambar_url);
-
-    setTampilForm(true);
-
-    setTimeout(() => {
-      formRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 100);
-  }
-
-  function tutupForm() {
-    setTampilForm(false);
-    resetForm();
-  }
-
-  async function simpanKamera(e: React.FormEvent) {
-    e.preventDefault();
-
-    if (!nama.trim() || !brand.trim()) {
-      alert("Nama dan brand kamera wajib diisi.");
-      return;
-    }
-
-    if (Number(harga) < 0 || Number(stok) < 0) {
-      alert("Harga dan stok tidak boleh kurang dari 0.");
-      return;
-    }
-
-    setMenyimpan(true);
+    if (!yakin) return;
 
     try {
-      // =========================================
-      // AMBIL SESSION ADMIN
-      // =========================================
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      const sessionResult = await supabase.auth.getSession();
-
-      const accessToken =
-        sessionResult.data.session?.access_token;
-
-      if (!accessToken) {
-        alert(
-          "Sesi admin tidak ditemukan. Silakan login kembali."
-        );
-
-        setMenyimpan(false);
+      if (sessionError || !session) {
+        router.replace("/admin/login");
         return;
       }
 
-      let kameraId: number | null = kameraEditId;
-
-      // =========================================
-      // EDIT KAMERA
-      // =========================================
-
-      if (modeEdit && kameraEditId !== null) {
-        const { error } = await supabase
-          .from("camera")
-          .update({
-            nama: nama.trim(),
-            brand: brand.trim(),
-            deskripsi: deskripsi.trim() || null,
-            harga_per_hari: Number(harga),
-            stok: Number(stok),
-            aktif,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", kameraEditId);
-
-        if (error) {
-          console.error("Gagal mengubah kamera:", error);
-
-          alert(
-            "Gagal mengubah kamera.\n\n" +
-              error.message
-          );
-
-          setMenyimpan(false);
-          return;
-        }
-      }
-
-      // =========================================
-      // TAMBAH KAMERA
-      // =========================================
-
-      if (!modeEdit) {
-        const { data, error } = await supabase
-          .from("camera")
-          .insert({
-            nama: nama.trim(),
-            brand: brand.trim(),
-            deskripsi: deskripsi.trim() || null,
-            harga_per_hari: Number(harga),
-            stok: Number(stok),
-            gambar_url: null,
-            aktif: true,
-          })
-          .select("id")
-          .single();
-
-        if (error || !data) {
-          console.error("Gagal menambah kamera:", error);
-
-          alert(
-            "Gagal menambah kamera.\n\n" +
-              (error?.message ||
-                "Data kamera tidak berhasil dibuat.")
-          );
-
-          setMenyimpan(false);
-          return;
-        }
-
-        kameraId = data.id;
-      }
-
-      // =========================================
-      // UPLOAD GAMBAR JIKA ADA
-      // =========================================
-
-      if (gambarFile && kameraId !== null) {
-        const formData = new FormData();
-
-        formData.append("file", gambarFile);
-
-        formData.append(
-          "kameraId",
-          String(kameraId)
-        );
-
-        const uploadResponse = await fetch(
-          "/api/admin/kamera/gambar",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-            body: formData,
-          }
-        );
-
-        const uploadResult =
-          await uploadResponse.json();
-
-        if (!uploadResponse.ok) {
-          console.error(
-            "Gagal upload gambar:",
-            uploadResult
-          );
-
-          alert(
-            "Data kamera berhasil disimpan, tetapi gambar gagal diupload.\n\n" +
-              (uploadResult.error ||
-                "Terjadi kesalahan saat upload gambar.")
-          );
-        }
-      }
-
-      // =========================================
-      // SELESAI
-      // =========================================
-
-      await ambilKamera();
-
-      alert(
-        modeEdit
-          ? "Data kamera berhasil diubah."
-          : "Kamera berhasil ditambahkan."
-      );
-
-      setMenyimpan(false);
-      tutupForm();
-    } catch (error) {
-      console.error("Error menyimpan kamera:", error);
-
-      alert(
-        "Terjadi kesalahan saat menyimpan kamera."
-      );
-
-      setMenyimpan(false);
-    }
-  }
-
-  async function ubahStatusKamera(item: Camera) {
-    const statusBaru = !item.aktif;
-
-    const pesan = statusBaru
-      ? `Aktifkan kembali kamera "${item.brand} ${item.nama}"?`
-      : `Nonaktifkan kamera "${item.brand} ${item.nama}"?\n\nKamera tidak akan ditampilkan kepada pelanggan.`;
-
-    const yakin = window.confirm(pesan);
-
-    if (!yakin) {
-      return;
-    }
-
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
-
-    if (sessionError || !session) {
-      router.replace("/admin/login");
-      return;
-    }
-
-    const response = await fetch(
-      "/api/admin/kamera/status",
-      {
+      const response = await fetch("/api/admin/kamera/status", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({
-          id: item.id,
-          aktif: statusBaru,
-        }),
+        body: JSON.stringify({ id: item.id, aktif: statusBaru }),
+      });
+
+      const hasil = await response.json();
+      if (!response.ok) {
+        setError(hasil.error || "Gagal mengubah status kamera.");
+        return;
       }
-    );
 
-    const hasil = await response.json();
-
-    if (!response.ok) {
-      console.error(
-        "Gagal mengubah status kamera:",
-        hasil
-      );
-
-      alert(
-        "Gagal mengubah status kamera.\n\n" +
-          (hasil.error || "Terjadi kesalahan.")
-      );
-
-      return;
-    }
-
-    await ambilKamera();
-
-    if (statusBaru) {
-      alert("Kamera berhasil diaktifkan kembali.");
-    } else {
-      alert("Kamera berhasil dinonaktifkan.");
+      await ambilKamera();
+    } catch (error) {
+      console.error("Gagal mengubah status kamera:", error);
+      setError("Terjadi kesalahan saat mengubah status kamera.");
     }
   }
 
-  return (
-    <main className="min-h-screen bg-black px-6 py-10 text-white">
-      <div className="mx-auto max-w-7xl">
+  useEffect(() => {
+    void ambilKamera();
+  }, [router]);
 
-        {/* HEADER */}
+  const filteredKamera = useMemo(() => {
+    const searchLower = search.trim().toLowerCase();
+
+    return kamera.filter((item) => {
+      const matchesSearch =
+        !searchLower ||
+        `${item.nama} ${item.brand}`.toLowerCase().includes(searchLower);
+
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" && item.aktif) ||
+        (statusFilter === "inactive" && !item.aktif);
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [kamera, search, statusFilter]);
+
+  return (
+    <main className="min-h-screen bg-black px-4 py-8 text-white md:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl">
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-sm text-yellow-400">
+            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-yellow-400">
               Admin
             </p>
-
-            <h1 className="text-3xl font-bold">
-              Kelola Kamera
-            </h1>
-
+            <h1 className="mt-2 text-3xl font-bold">Kelola Kamera</h1>
             <p className="mt-2 text-sm text-gray-400">
-              Tambah, edit, dan atur status kamera.
+              Pantau daftar kamera dan buka detail untuk pengelolaan lanjutan.
             </p>
           </div>
 
-          <div className="flex gap-3">
-            <a
-              href="/admin"
-              className="rounded-full border border-gray-700 px-5 py-3 text-sm font-semibold transition hover:border-yellow-400 hover:text-yellow-400"
-            >
-              ← Dashboard
-            </a>
-
+          <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              onClick={bukaFormTambah}
+              onClick={() => router.push("/admin")}
+              className="rounded-full border border-gray-700 px-5 py-3 text-sm font-semibold text-gray-200 transition hover:border-yellow-400 hover:text-yellow-400"
+            >
+              ? Dashboard
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push("/admin/kamera/new")}
               className="rounded-full bg-yellow-400 px-5 py-3 text-sm font-semibold text-black transition hover:bg-yellow-300"
             >
               + Tambah Kamera
@@ -411,373 +167,157 @@ export default function AdminKameraPage() {
           </div>
         </div>
 
-        {/* FORM */}
-        {tampilForm && (
-          <div
-            ref={formRef}
-            className="mb-10 rounded-2xl border border-gray-800 bg-gray-950 p-6"
-          >
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold">
-                  {modeEdit
-                    ? "Edit Kamera"
-                    : "Tambah Kamera"}
-                </h2>
-
-                <p className="mt-1 text-sm text-gray-400">
-                  {modeEdit
-                    ? "Ubah informasi kamera."
-                    : "Masukkan informasi kamera baru."}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={tutupForm}
-                className="text-sm text-gray-400 transition hover:text-white"
-              >
-                Tutup
-              </button>
-            </div>
-
-            <form
-              onSubmit={simpanKamera}
-              className="grid gap-5 md:grid-cols-2"
-            >
-              {/* NAMA */}
-              <div>
-                <label className="mb-2 block text-sm text-gray-300">
-                  Nama Kamera
-                </label>
-
-                <input
-                  type="text"
-                  value={nama}
-                  onChange={(e) =>
-                    setNama(e.target.value)
-                  }
-                  placeholder="Contoh: EOS R"
-                  className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-white outline-none transition focus:border-yellow-400"
-                />
-              </div>
-
-              {/* BRAND */}
-              <div>
-                <label className="mb-2 block text-sm text-gray-300">
-                  Brand
-                </label>
-
-                <input
-                  type="text"
-                  value={brand}
-                  onChange={(e) =>
-                    setBrand(e.target.value)
-                  }
-                  placeholder="Contoh: Canon"
-                  className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-white outline-none transition focus:border-yellow-400"
-                />
-              </div>
-
-              {/* HARGA */}
-              <div>
-                <label className="mb-2 block text-sm text-gray-300">
-                  Harga per Hari
-                </label>
-
-                <input
-                  type="number"
-                  min="0"
-                  value={harga}
-                  onChange={(e) =>
-                    setHarga(e.target.value)
-                  }
-                  className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-white outline-none transition focus:border-yellow-400"
-                />
-
-                <p className="mt-2 text-xs text-gray-500">
-                  Contoh: 50000 = Rp50.000
-                </p>
-              </div>
-
-              {/* STOK */}
-              <div>
-                <label className="mb-2 block text-sm text-gray-300">
-                  Stok
-                </label>
-
-                <input
-                  type="number"
-                  min="0"
-                  value={stok}
-                  onChange={(e) =>
-                    setStok(e.target.value)
-                  }
-                  className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-white outline-none transition focus:border-yellow-400"
-                />
-              </div>
-
-              {/* GAMBAR */}
-              <div className="md:col-span-2">
-                <label className="mb-2 block text-sm text-gray-300">
-                  Gambar Kamera
-                </label>
-
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={(e) => {
-                    const file =
-                      e.target.files?.[0] || null;
-
-                    setGambarFile(file);
-
-                    if (file) {
-                      setGambarPreview(
-                        URL.createObjectURL(file)
-                      );
-                    }
-                  }}
-                  className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-sm text-gray-300 outline-none file:mr-4 file:rounded-full file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:font-semibold file:text-black hover:file:bg-yellow-300"
-                />
-
-                <p className="mt-2 text-xs text-gray-500">
-                  Format: JPG, PNG, atau WebP. Maksimal 5 MB.
-                </p>
-
-                {gambarPreview && (
-                  <div className="mt-4">
-                    <p className="mb-2 text-xs text-gray-500">
-                      Preview gambar:
-                    </p>
-
-                    <img
-                      src={gambarPreview}
-                      alt="Preview kamera"
-                      className="h-48 w-full rounded-xl border border-gray-800 object-contain bg-black"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* DESKRIPSI */}
-              <div className="md:col-span-2">
-                <label className="mb-2 block text-sm text-gray-300">
-                  Deskripsi
-                </label>
-
-                <textarea
-                  value={deskripsi}
-                  onChange={(e) =>
-                    setDeskripsi(e.target.value)
-                  }
-                  rows={4}
-                  placeholder="Masukkan deskripsi atau spesifikasi kamera..."
-                  className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-white outline-none transition focus:border-yellow-400"
-                />
-              </div>
-
-              {/* STATUS */}
-              {modeEdit && (
-                <div className="md:col-span-2">
-                  <label className="flex cursor-pointer items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={aktif}
-                      onChange={(e) =>
-                        setAktif(e.target.checked)
-                      }
-                      className="h-5 w-5 accent-yellow-400"
-                    />
-
-                    <span className="text-sm text-gray-300">
-                      Kamera aktif dan dapat disewa pelanggan
-                    </span>
-                  </label>
-                </div>
-              )}
-
-              {/* BUTTON */}
-              <div className="flex gap-3 md:col-span-2">
-                <button
-                  type="submit"
-                  disabled={menyimpan}
-                  className="rounded-full bg-yellow-400 px-6 py-3 text-sm font-semibold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {menyimpan
-                    ? "Menyimpan..."
-                    : modeEdit
-                    ? "Simpan Perubahan"
-                    : "Tambah Kamera"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={tutupForm}
-                  className="rounded-full border border-gray-700 px-6 py-3 text-sm font-semibold text-gray-300 transition hover:border-white hover:text-white"
-                >
-                  Batal
-                </button>
-              </div>
-            </form>
+        {error && (
+          <div className="mb-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+            {error}
           </div>
         )}
 
-        {/* DAFTAR KAMERA */}
-        <div className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-950">
-          <div className="border-b border-gray-800 p-6">
-            <h2 className="text-xl font-bold">
-              Daftar Kamera
-            </h2>
+        <section className="mb-6 rounded-2xl border border-gray-800 bg-gray-950 p-4 md:p-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex-1">
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Cari nama atau brand kamera..."
+                className="w-full rounded-xl border border-gray-700 bg-black px-4 py-2.5 text-sm text-white placeholder:text-gray-500 outline-none focus:border-yellow-400"
+              />
+            </div>
 
-            <p className="mt-1 text-sm text-gray-400">
-              Total {kamera.length} kamera
-            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(
+                    event.target.value as "all" | "active" | "inactive",
+                  )
+                }
+                className="rounded-xl border border-gray-700 bg-black px-4 py-2.5 text-sm text-white outline-none focus:border-yellow-400"
+              >
+                <option value="all">Semua status</option>
+                <option value="active">Aktif</option>
+                <option value="inactive">Tidak aktif</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("all");
+                }}
+                className="rounded-xl border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition hover:border-yellow-400 hover:text-yellow-400"
+              >
+                Reset
+              </button>
+            </div>
           </div>
+        </section>
 
+        <section className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-950">
           {loading ? (
-            <div className="p-8 text-center text-gray-400">
+            <div className="p-10 text-center text-gray-400">
               Memuat data kamera...
             </div>
-          ) : kamera.length === 0 ? (
-            <div className="p-8 text-center text-gray-400">
-              Belum ada kamera.
+          ) : filteredKamera.length === 0 ? (
+            <div className="p-10 text-center text-gray-400">
+              <p className="text-lg font-semibold text-white">
+                Belum ada hasil yang cocok
+              </p>
+              <p className="mt-2 text-sm">
+                Coba ubah pencarian atau filter status.
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px]">
+              <table className="w-full min-w-[980px]">
                 <thead>
-                  <tr className="border-b border-gray-800 text-left text-sm text-gray-400">
-                    <th className="px-6 py-4">
-                      Gambar
-                    </th>
-
-                    <th className="px-6 py-4">
-                      Kamera
-                    </th>
-
-                    <th className="px-6 py-4">
-                      Brand
-                    </th>
-
-                    <th className="px-6 py-4">
-                      Harga
-                    </th>
-
-                    <th className="px-6 py-4">
-                      Stok
-                    </th>
-
-                    <th className="px-6 py-4">
-                      Status
-                    </th>
-
-                    <th className="px-6 py-4 text-right">
-                      Aksi
-                    </th>
+                  <tr className="border-b border-gray-800 bg-gray-900/80 text-left text-xs uppercase tracking-[0.2em] text-gray-400">
+                    <th className="px-6 py-4">Gambar</th>
+                    <th className="px-6 py-4">Kamera</th>
+                    <th className="px-6 py-4">Brand</th>
+                    <th className="px-6 py-4">Harga</th>
+                    <th className="px-6 py-4">Stok</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4 text-right">Aksi</th>
                   </tr>
                 </thead>
-
                 <tbody>
-                  {kamera.map((item) => (
+                  {filteredKamera.map((item) => (
                     <tr
                       key={item.id}
-                      className="border-b border-gray-900 transition hover:bg-gray-900"
+                      className="border-b border-gray-900 hover:bg-gray-900/80"
                     >
-                      {/* GAMBAR - HANYA SATU */}
-                      <td className="px-6 py-5">
+                      <td className="px-6 py-5 align-middle">
                         {item.gambar_url ? (
                           <img
                             src={item.gambar_url}
                             alt={`${item.brand} ${item.nama}`}
-                            className="h-20 w-24 rounded-xl border border-gray-800 object-cover"
+                            className="h-18 w-24 rounded-xl border border-gray-800 object-cover"
                           />
                         ) : (
-                          <div className="flex h-20 w-24 items-center justify-center rounded-xl border border-gray-800 bg-gray-900 text-xs text-gray-500">
-                            Belum ada gambar
+                          <div className="flex h-18 w-24 items-center justify-center rounded-xl border border-gray-800 bg-gray-900 text-[10px] text-gray-500">
+                            No image
                           </div>
                         )}
                       </td>
 
-                      {/* NAMA + DESKRIPSI */}
-                      <td className="px-6 py-5">
-                        <div className="font-semibold">
+                      <td className="px-6 py-5 align-middle">
+                        <div className="font-semibold text-white">
                           {item.nama}
                         </div>
-
                         {item.deskripsi && (
-                          <div className="mt-1 max-w-xs text-xs text-gray-500">
+                          <div className="mt-1 max-w-xs text-xs text-gray-500 line-clamp-2">
                             {item.deskripsi}
                           </div>
                         )}
                       </td>
 
-                      {/* BRAND */}
-                      <td className="px-6 py-5 text-gray-300">
+                      <td className="px-6 py-5 align-middle text-gray-300">
                         {item.brand}
                       </td>
-
-                      {/* HARGA */}
-                      <td className="px-6 py-5 text-gray-300">
-                        Rp
-                        {Number(
-                          item.harga_per_hari
-                        ).toLocaleString("id-ID")}
+                      <td className="px-6 py-5 align-middle text-gray-300">
+                        {formatRupiah(item.harga_per_hari)}
                       </td>
-
-                      {/* STOK */}
-                      <td className="px-6 py-5">
+                      <td className="px-6 py-5 align-middle">
                         <span
                           className={
                             item.stok > 0
-                              ? "text-green-400"
-                              : "text-red-400"
+                              ? "font-semibold text-emerald-400"
+                              : "font-semibold text-red-400"
                           }
                         >
                           {item.stok}
                         </span>
                       </td>
 
-                      {/* STATUS */}
-                      <td className="px-6 py-5">
-                        {item.aktif ? (
-                          <span className="rounded-full bg-green-400/10 px-3 py-1 text-xs font-semibold text-green-400">
-                            Aktif
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-red-400/10 px-3 py-1 text-xs font-semibold text-red-400">
-                            Tidak Aktif
-                          </span>
-                        )}
+                      <td className="px-6 py-5 align-middle">
+                        <StatusBadge
+                          label={item.aktif ? "Aktif" : "Tidak Aktif"}
+                          tone={item.aktif ? "success" : "neutral"}
+                        />
                       </td>
 
-                      {/* AKSI */}
-                      <td className="px-6 py-5">
+                      <td className="px-6 py-5 align-middle">
                         <div className="flex justify-end gap-2">
                           <button
                             type="button"
                             onClick={() =>
-                              bukaFormEdit(item)
+                              router.push(`/admin/kamera/${item.id}`)
                             }
                             className="rounded-full border border-yellow-400 px-4 py-2 text-xs font-semibold text-yellow-400 transition hover:bg-yellow-400 hover:text-black"
                           >
-                            Edit
+                            Detail
                           </button>
-
                           <button
                             type="button"
-                            onClick={() =>
-                              ubahStatusKamera(item)
-                            }
+                            onClick={() => ubahStatusKamera(item)}
                             className={
                               item.aktif
                                 ? "rounded-full border border-red-500 px-4 py-2 text-xs font-semibold text-red-400 transition hover:bg-red-500 hover:text-white"
-                                : "rounded-full border border-green-500 px-4 py-2 text-xs font-semibold text-green-400 transition hover:bg-green-500 hover:text-white"
+                                : "rounded-full border border-emerald-500 px-4 py-2 text-xs font-semibold text-emerald-400 transition hover:bg-emerald-500 hover:text-white"
                             }
                           >
-                            {item.aktif
-                              ? "Nonaktifkan"
-                              : "Aktifkan"}
+                            {item.aktif ? "Nonaktifkan" : "Aktifkan"}
                           </button>
                         </div>
                       </td>
@@ -787,7 +327,7 @@ export default function AdminKameraPage() {
               </table>
             </div>
           )}
-        </div>
+        </section>
       </div>
     </main>
   );
