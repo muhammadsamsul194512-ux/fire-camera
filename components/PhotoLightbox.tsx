@@ -33,7 +33,9 @@ export function PhotoLightbox({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
       if (event.key === "ArrowRight") {
-        setCurrentIndex((previous) => Math.min(previous + 1, images.length - 1));
+        setCurrentIndex((previous) =>
+          Math.min(previous + 1, images.length - 1),
+        );
       }
       if (event.key === "ArrowLeft") {
         setCurrentIndex((previous) => Math.max(previous - 1, 0));
@@ -73,7 +75,9 @@ export function PhotoLightbox({
           <button
             type="button"
             aria-label="Foto sebelumnya"
-            onClick={() => setCurrentIndex((previous) => Math.max(previous - 1, 0))}
+            onClick={() =>
+              setCurrentIndex((previous) => Math.max(previous - 1, 0))
+            }
             className="absolute left-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-700 bg-black/60 text-2xl text-white transition hover:bg-zinc-800 sm:left-6"
           >
             ←
@@ -84,7 +88,11 @@ export function PhotoLightbox({
           <button
             type="button"
             aria-label="Foto berikutnya"
-            onClick={() => setCurrentIndex((previous) => Math.min(previous + 1, images.length - 1))}
+            onClick={() =>
+              setCurrentIndex((previous) =>
+                Math.min(previous + 1, images.length - 1),
+              )
+            }
             className="absolute right-3 top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-700 bg-black/60 text-2xl text-white transition hover:bg-zinc-800 sm:right-6"
           >
             →
