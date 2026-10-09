@@ -4,62 +4,55 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY!;
 
-const supabaseAdmin = createClient(
-  supabaseUrl,
-  supabaseSecretKey
-);
+const supabaseAdmin = createClient(supabaseUrl, supabaseSecretKey);
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
 
-    const nomorPesanan = searchParams
-      .get("pesanan")
-      ?.trim();
+    const nomorPesanan = searchParams.get("pesanan")?.trim();
 
     if (!nomorPesanan) {
       return NextResponse.json(
         {
           error: "Nomor pesanan wajib diisi.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    const { data: order, error: orderError } =
-      await supabaseAdmin
-        .from("orders")
-        .select(
-          `
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from("orders")
+      .select(
+        `
           id,
           nomor_pesanan,
           total_harga,
           status,
+          payment_expires_at,
+          expired_at,
           payment (
             id,
             status,
             catatan_admin,
             uploaded_at,
             verified_at,
-            bukti_pembayaran_url
+            bukti_pembayaran_url,
+            expires_at
           )
-          `
-        )
-        .eq("nomor_pesanan", nomorPesanan)
-        .maybeSingle();
+          `,
+      )
+      .eq("nomor_pesanan", nomorPesanan)
+      .maybeSingle();
 
     if (orderError) {
-      console.error(
-        "Gagal mengambil status pembayaran:",
-        orderError
-      );
+      console.error("Gagal mengambil status pembayaran:", orderError);
 
       return NextResponse.json(
         {
-          error:
-            "Terjadi kesalahan saat mengambil status pembayaran.",
+          error: "Terjadi kesalahan saat mengambil status pembayaran.",
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -68,7 +61,7 @@ export async function GET(request: Request) {
         {
           error: "Pesanan tidak ditemukan.",
         },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -82,21 +75,19 @@ export async function GET(request: Request) {
         nomor_pesanan: order.nomor_pesanan,
         total_harga: order.total_harga,
         status_pesanan: order.status,
+        payment_expires_at: order.payment_expires_at || null,
+        expired_at: order.expired_at || null,
         payment: payment || null,
       },
     });
   } catch (error) {
-    console.error(
-      "Error API status pembayaran:",
-      error
-    );
+    console.error("Error API status pembayaran:", error);
 
     return NextResponse.json(
       {
-        error:
-          "Terjadi kesalahan pada server.",
+        error: "Terjadi kesalahan pada server.",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

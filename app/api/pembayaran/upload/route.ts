@@ -4,45 +4,33 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY!;
 
-const supabaseAdmin = createClient(
-  supabaseUrl,
-  supabaseSecretKey
-);
+const supabaseAdmin = createClient(supabaseUrl, supabaseSecretKey);
 
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
 
     const file = formData.get("file") as File | null;
-    const nomorPesanan = formData
-      .get("nomorPesanan")
-      ?.toString()
-      .trim();
+    const nomorPesanan = formData.get("nomorPesanan")?.toString().trim();
 
     if (!file || !nomorPesanan) {
       return NextResponse.json(
         {
-          error:
-            "File dan nomor pesanan wajib diisi.",
+          error: "File dan nomor pesanan wajib diisi.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Validasi format file
-    const tipeFileDiizinkan = [
-      "image/jpeg",
-      "image/png",
-      "application/pdf",
-    ];
+    const tipeFileDiizinkan = ["image/jpeg", "image/png", "application/pdf"];
 
     if (!tipeFileDiizinkan.includes(file.type)) {
       return NextResponse.json(
         {
-          error:
-            "Format file harus JPG, JPEG, PNG, atau PDF.",
+          error: "Format file harus JPG, JPEG, PNG, atau PDF.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -52,30 +40,25 @@ export async function POST(request: Request) {
         {
           error: "Ukuran file maksimal 5 MB.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Cari pesanan
-    const { data: order, error: orderError } =
-      await supabaseAdmin
-        .from("orders")
-        .select("id, nomor_pesanan")
-        .eq("nomor_pesanan", nomorPesanan)
-        .maybeSingle();
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from("orders")
+      .select("id, nomor_pesanan, status, payment_expires_at")
+      .eq("nomor_pesanan", nomorPesanan)
+      .maybeSingle();
 
     if (orderError) {
-      console.error(
-        "Gagal mencari pesanan:",
-        orderError
-      );
+      console.error("Gagal mencari pesanan:", orderError);
 
       return NextResponse.json(
         {
-          error:
-            "Terjadi kesalahan saat mencari pesanan.",
+          error: "Terjadi kesalahan saat mencari pesanan.",
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -84,42 +67,62 @@ export async function POST(request: Request) {
         {
           error: "Pesanan tidak ditemukan.",
         },
-        { status: 404 }
+        { status: 404 },
+      );
+    }
+
+    if (
+      order.status === "kedaluwarsa" ||
+      order.status === "dibatalkan" ||
+      order.status === "ditolak" ||
+      order.status === "selesai"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Reservasi ini sudah tidak aktif. Silakan cek kembali ketersediaan dan buat pesanan baru.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (
+      order.payment_expires_at &&
+      new Date(order.payment_expires_at).getTime() <= Date.now()
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Batas waktu pembayaran sudah habis. Reservasi ini telah kedaluwarsa.",
+        },
+        { status: 400 },
       );
     }
 
     // Ambil data pembayaran
-    const { data: payment, error: paymentGetError } =
-      await supabaseAdmin
-        .from("payment")
-        .select(
-          "id, status, bukti_pembayaran_url"
-        )
-        .eq("order_id", order.id)
-        .maybeSingle();
+    const { data: payment, error: paymentGetError } = await supabaseAdmin
+      .from("payment")
+      .select("id, status, bukti_pembayaran_url")
+      .eq("order_id", order.id)
+      .maybeSingle();
 
     if (paymentGetError) {
-      console.error(
-        "Gagal mengambil data pembayaran:",
-        paymentGetError
-      );
+      console.error("Gagal mengambil data pembayaran:", paymentGetError);
 
       return NextResponse.json(
         {
-          error:
-            "Gagal mengambil data pembayaran.",
+          error: "Gagal mengambil data pembayaran.",
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     if (!payment) {
       return NextResponse.json(
         {
-          error:
-            "Data pembayaran untuk pesanan ini tidak ditemukan.",
+          error: "Data pembayaran untuk pesanan ini tidak ditemukan.",
         },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -128,11 +131,11 @@ export async function POST(request: Request) {
     // 2. Admin meminta upload ulang
     // 3. Admin menolak pembayaran
     const statusBolehUpload = [
-  "menunggu_pembayaran",
-  "menunggu_verifikasi",
-  "ditolak",
-  "perlu_upload_ulang",
-];
+      "menunggu_pembayaran",
+      "menunggu_verifikasi",
+      "ditolak",
+      "perlu_upload_ulang",
+    ];
 
     if (!statusBolehUpload.includes(payment.status)) {
       return NextResponse.json(
@@ -140,14 +143,24 @@ export async function POST(request: Request) {
           error:
             "Bukti pembayaran tidak dapat diupload pada status pembayaran saat ini.",
         },
-        { status: 400 }
+        { status: 400 },
+      );
+    }
+
+    if (order.status === "kedaluwarsa" || payment.status === "kedaluwarsa") {
+      return NextResponse.json(
+        {
+          error:
+            "Reservasi sudah kedaluwarsa. Silakan cek ketersediaan kamera dan buat pesanan baru.",
+        },
+        { status: 400 },
       );
     }
 
     // Nama file baru
     const namaFile = `${Date.now()}-${file.name.replace(
       /[^a-zA-Z0-9.-]/g,
-      "-"
+      "-",
     )}`;
 
     const pathFile = `${order.id}/${namaFile}`;
@@ -156,79 +169,66 @@ export async function POST(request: Request) {
     const arrayBuffer = await file.arrayBuffer();
 
     // Upload ke Supabase Storage
-    const { error: uploadError } =
-      await supabaseAdmin.storage
-        .from("bukti-pembayaran")
-        .upload(pathFile, arrayBuffer, {
-          contentType: file.type,
-          upsert: false,
-        });
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("bukti-pembayaran")
+      .upload(pathFile, arrayBuffer, {
+        contentType: file.type,
+        upsert: false,
+      });
 
     if (uploadError) {
-      console.error(
-        "Gagal upload file:",
-        uploadError
-      );
+      console.error("Gagal upload file:", uploadError);
 
       return NextResponse.json(
         {
-          error:
-            "Gagal mengupload bukti pembayaran.",
+          error: "Gagal mengupload bukti pembayaran.",
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     // Update data pembayaran
-    const { error: paymentError } =
-      await supabaseAdmin
-        .from("payment")
-        .update({
-          bukti_pembayaran_url: pathFile,
-          uploaded_at: new Date().toISOString(),
-          status: "menunggu_verifikasi",
-          catatan_admin: null,
-          verified_at: null,
-        })
-        .eq("id", payment.id);
+    const { error: paymentError } = await supabaseAdmin
+      .from("payment")
+      .update({
+        bukti_pembayaran_url: pathFile,
+        uploaded_at: new Date().toISOString(),
+        status: "menunggu_verifikasi",
+        catatan_admin: null,
+        verified_at: null,
+      })
+      .eq("id", payment.id);
 
     if (paymentError) {
-      console.error(
-        "Gagal memperbarui pembayaran:",
-        paymentError
-      );
+      console.error("Gagal memperbarui pembayaran:", paymentError);
 
       return NextResponse.json(
         {
           error:
             "File berhasil diupload, tetapi data pembayaran gagal diperbarui.",
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
     // Update status pesanan menjadi menunggu verifikasi
-const { error: orderUpdateError } =
-  await supabaseAdmin
-    .from("orders")
-    .update({
-      status: "menunggu_verifikasi",
-    })
-    .eq("id", order.id);
+    const { error: orderUpdateError } = await supabaseAdmin
+      .from("orders")
+      .update({
+        status: "menunggu_verifikasi",
+      })
+      .eq("id", order.id);
 
-if (orderUpdateError) {
-  console.error(
-    "Gagal memperbarui status pesanan:",
-    orderUpdateError
-  );
+    if (orderUpdateError) {
+      console.error("Gagal memperbarui status pesanan:", orderUpdateError);
 
-  return NextResponse.json(
-    {
-      error:
-        "Bukti pembayaran berhasil diupload, tetapi status pesanan gagal diperbarui.",
-    },
-    { status: 500 }
-  );
-}
+      return NextResponse.json(
+        {
+          error:
+            "Bukti pembayaran berhasil diupload, tetapi status pesanan gagal diperbarui.",
+        },
+        { status: 500 },
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -236,17 +236,13 @@ if (orderUpdateError) {
         "Bukti pembayaran berhasil diupload dan sedang menunggu verifikasi admin.",
     });
   } catch (error) {
-    console.error(
-      "Error API upload pembayaran:",
-      error
-    );
+    console.error("Error API upload pembayaran:", error);
 
     return NextResponse.json(
       {
-        error:
-          "Terjadi kesalahan pada server.",
+        error: "Terjadi kesalahan pada server.",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
