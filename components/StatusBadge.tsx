@@ -36,6 +36,14 @@ const orderStatusMap: Record<string, StatusConfig> = {
     label: "Perlu Upload Ulang",
     className: "bg-red-500/15 text-red-400 border border-red-500/30",
   },
+  kedaluwarsa: {
+    label: "Kedaluwarsa",
+    className: "bg-orange-500/15 text-orange-300 border border-orange-500/30",
+  },
+  expired: {
+    label: "Expired",
+    className: "bg-orange-500/15 text-orange-300 border border-orange-500/30",
+  },
 };
 
 export function formatStatus(status: string): string {

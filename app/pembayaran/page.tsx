@@ -28,6 +28,8 @@ function PembayaranContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [payment, setPayment] = useState<PaymentData | null>(null);
+  const [paymentExpiresAt, setPaymentExpiresAt] = useState<string | null>(null);
+  const [expiredAt, setExpiredAt] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(true);
@@ -43,10 +45,14 @@ function PembayaranContent() {
       }
       try {
         const res = await fetch(
-          `/api/pembayaran/status?pesanan=${encodeURIComponent(nomorPesanan)}`
+          `/api/pembayaran/status?pesanan=${encodeURIComponent(nomorPesanan)}`,
         );
         const hasil = await res.json();
-        if (res.ok) setPayment(hasil.data?.payment || null);
+        if (res.ok) {
+          setPayment(hasil.data?.payment || null);
+          setPaymentExpiresAt(hasil.data?.payment_expires_at || null);
+          setExpiredAt(hasil.data?.expired_at || null);
+        }
       } catch {
         // status load failure is non-critical
       } finally {
@@ -58,9 +64,12 @@ function PembayaranContent() {
 
   function bolehUpload() {
     if (!payment) return true;
-    return ["menunggu_pembayaran", "menunggu_verifikasi", "ditolak", "perlu_upload_ulang"].includes(
-      payment.status
-    );
+    return [
+      "menunggu_pembayaran",
+      "menunggu_verifikasi",
+      "ditolak",
+      "perlu_upload_ulang",
+    ].includes(payment.status);
   }
 
   function pilihFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -88,8 +97,20 @@ function PembayaranContent() {
     setPesan("");
     setError("");
 
-    if (!file) { setError("Silakan pilih bukti pembayaran terlebih dahulu."); return; }
-    if (!nomorPesanan) { setError("Nomor pesanan tidak ditemukan."); return; }
+    if (!file) {
+      setError("Silakan pilih bukti pembayaran terlebih dahulu.");
+      return;
+    }
+    if (!nomorPesanan) {
+      setError("Nomor pesanan tidak ditemukan.");
+      return;
+    }
+    if (sudahKedaluwarsa) {
+      setError(
+        "Reservasi sudah kedaluwarsa. Silakan cek ketersediaan kamera dan buat pesanan baru.",
+      );
+      return;
+    }
     if (!bolehUpload()) {
       setError("Bukti pembayaran tidak dapat diupload pada status saat ini.");
       return;
@@ -113,15 +134,21 @@ function PembayaranContent() {
       }
 
       setPesan(
-        "Bukti pembayaran berhasil diupload dan sedang menunggu verifikasi admin."
+        "Bukti pembayaran berhasil diupload dan sedang menunggu verifikasi admin.",
       );
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
 
       setPayment((prev) =>
         prev
-          ? { ...prev, status: "menunggu_verifikasi", catatan_admin: null, uploaded_at: new Date().toISOString(), verified_at: null }
-          : prev
+          ? {
+              ...prev,
+              status: "menunggu_verifikasi",
+              catatan_admin: null,
+              uploaded_at: new Date().toISOString(),
+              verified_at: null,
+            }
+          : prev,
       );
     } catch {
       setError("Tidak dapat terhubung ke server. Silakan coba lagi.");
@@ -133,6 +160,10 @@ function PembayaranContent() {
   const sedangUploadUlang =
     payment?.status === "perlu_upload_ulang" || payment?.status === "ditolak";
   const sudahDikonfirmasi = payment?.status === "dikonfirmasi";
+  const sudahKedaluwarsa =
+    payment?.status === "kedaluwarsa" ||
+    expiredAt ||
+    (paymentExpiresAt && new Date(paymentExpiresAt).getTime() <= Date.now());
 
   // Guard: no order number in URL
   if (!nomorPesanan) {
@@ -153,7 +184,10 @@ function PembayaranContent() {
             </Link>
           </div>
         </main>
-        <Footer namaToko={pengaturan.nama_toko} whatsapp={pengaturan.whatsapp} />
+        <Footer
+          namaToko={pengaturan.nama_toko}
+          whatsapp={pengaturan.whatsapp}
+        />
       </div>
     );
   }
@@ -178,7 +212,6 @@ function PembayaranContent() {
       {/* CONTENT */}
       <section className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
         <div className="grid gap-6 md:grid-cols-2">
-
           {/* LEFT — order detail */}
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
             <h2 className="text-lg font-bold">Detail Pesanan</h2>
@@ -201,7 +234,9 @@ function PembayaranContent() {
                 {loadingStatus ? (
                   <div className="mt-2 flex items-center gap-2">
                     <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-600 border-t-yellow-400" />
-                    <span className="text-sm text-zinc-400">Memuat status…</span>
+                    <span className="text-sm text-zinc-400">
+                      Memuat status…
+                    </span>
                   </div>
                 ) : payment ? (
                   <div className="mt-2">
@@ -211,6 +246,25 @@ function PembayaranContent() {
                   <p className="mt-2 text-sm text-zinc-400">
                     Belum ada data pembayaran.
                   </p>
+                )}
+
+                {paymentExpiresAt &&
+                  !sudahDikonfirmasi &&
+                  !sudahKedaluwarsa && (
+                    <p className="mt-2 text-xs text-zinc-400">
+                      Batas pembayaran:{" "}
+                      {new Date(paymentExpiresAt).toLocaleString("id-ID", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </p>
+                  )}
+
+                {sudahKedaluwarsa && (
+                  <div className="mt-3 rounded-xl border border-orange-500/30 bg-orange-500/10 p-3 text-sm text-orange-200">
+                    Reservasi ini sudah kedaluwarsa. Silakan cek ketersediaan
+                    dan buat pesanan baru.
+                  </div>
                 )}
               </div>
 
@@ -236,6 +290,24 @@ function PembayaranContent() {
           {/* RIGHT — transfer & upload */}
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
             <h2 className="text-lg font-bold">Transfer Bank</h2>
+
+            {sudahKedaluwarsa && (
+              <div className="mt-5 rounded-xl border border-orange-500/30 bg-orange-500/10 p-4">
+                <p className="font-semibold text-orange-300">
+                  Reservasi Kedaluwarsa
+                </p>
+                <p className="mt-1.5 text-sm text-orange-200">
+                  Batas waktu pembayaran telah berakhir dan ruang kamera telah
+                  dibuka kembali untuk pemesanan baru.
+                </p>
+                <Link
+                  href="/kamera"
+                  className="mt-3 inline-block rounded-full bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-400 transition"
+                >
+                  Cek Ketersediaan →
+                </Link>
+              </div>
+            )}
 
             {/* Re-upload warning */}
             {sedangUploadUlang && (
@@ -299,8 +371,10 @@ function PembayaranContent() {
 
             <p className="mt-4 text-sm text-zinc-400 leading-6">
               Transfer tepat sejumlah{" "}
-              <span className="font-semibold text-white">{formatRupiah(total)}</span>.
-              Setelah transfer, upload bukti di bawah.
+              <span className="font-semibold text-white">
+                {formatRupiah(total)}
+              </span>
+              . Setelah transfer, upload bukti di bawah.
             </p>
 
             {/* File input (hidden) */}
@@ -321,13 +395,17 @@ function PembayaranContent() {
                   disabled={loading || loadingStatus || !bolehUpload()}
                   className="mt-5 w-full rounded-full border border-zinc-700 px-5 py-3 font-semibold text-white transition hover:border-yellow-400 hover:text-yellow-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {sedangUploadUlang ? "Pilih Bukti Pembayaran Baru" : "Pilih Bukti Pembayaran"}
+                  {sedangUploadUlang
+                    ? "Pilih Bukti Pembayaran Baru"
+                    : "Pilih Bukti Pembayaran"}
                 </button>
 
                 {file && (
                   <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950 p-3">
                     <p className="text-xs text-zinc-500">File dipilih</p>
-                    <p className="mt-0.5 break-all text-sm font-medium">{file.name}</p>
+                    <p className="mt-0.5 break-all text-sm font-medium">
+                      {file.name}
+                    </p>
                     <p className="mt-0.5 text-xs text-zinc-500">
                       {(file.size / 1024 / 1024).toFixed(2)} MB
                     </p>
@@ -361,8 +439,8 @@ function PembayaranContent() {
                   {loading
                     ? "Mengupload…"
                     : sedangUploadUlang
-                    ? "Upload Ulang Bukti"
-                    : "Upload Bukti Pembayaran"}
+                      ? "Upload Ulang Bukti"
+                      : "Upload Bukti Pembayaran"}
                 </button>
 
                 <p className="mt-2 text-center text-xs text-zinc-500">
