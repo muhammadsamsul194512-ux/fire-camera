@@ -11,12 +11,13 @@ export async function POST(request: Request) {
     const formData = await request.formData();
 
     const file = formData.get("file") as File | null;
+    const orderIdValue = formData.get("orderId")?.toString().trim();
     const nomorPesanan = formData.get("nomorPesanan")?.toString().trim();
 
-    if (!file || !nomorPesanan) {
+    if (!file || (!orderIdValue && !nomorPesanan)) {
       return NextResponse.json(
         {
-          error: "File dan nomor pesanan wajib diisi.",
+          error: "File dan identitas pesanan wajib diisi.",
         },
         { status: 400 },
       );
@@ -44,12 +45,18 @@ export async function POST(request: Request) {
       );
     }
 
-    // Cari pesanan
-    const { data: order, error: orderError } = await supabaseAdmin
-      .from("orders")
-      .select("id, nomor_pesanan, status, payment_expires_at")
-      .eq("nomor_pesanan", nomorPesanan)
-      .maybeSingle();
+    // Cari pesanan: gunakan orderId jika tersedia, lalu fallback ke nomor pesanan untuk kompatibilitas.
+    const { data: order, error: orderError } = orderIdValue
+      ? await supabaseAdmin
+          .from("orders")
+          .select("id, nomor_pesanan, status, payment_expires_at")
+          .eq("id", Number(orderIdValue))
+          .maybeSingle()
+      : await supabaseAdmin
+          .from("orders")
+          .select("id, nomor_pesanan, status, payment_expires_at")
+          .eq("nomor_pesanan", nomorPesanan)
+          .maybeSingle();
 
     if (orderError) {
       console.error("Gagal mencari pesanan:", orderError);

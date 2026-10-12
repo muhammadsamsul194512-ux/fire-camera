@@ -326,9 +326,7 @@ function SewaContent() {
       }
 
       clearBooking();
-      router.push(
-        `/pembayaran?pesanan=${encodeURIComponent(data.nomorPesanan)}&total=${data.totalHarga}`,
-      );
+      router.push(data.orderId ? `/pembayaran/${data.orderId}` : "/pembayaran");
     } catch {
       setError("Tidak dapat terhubung ke server. Silakan coba lagi.");
     } finally {

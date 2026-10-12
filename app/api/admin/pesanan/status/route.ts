@@ -92,6 +92,15 @@ export async function PATCH(request: NextRequest) {
     // VALIDASI ALUR STATUS
     // =========================
 
+    if (["dibatalkan", "ditolak", "kedaluwarsa", "selesai"].includes(pesanan.status)) {
+      return NextResponse.json(
+        {
+          error: `Pesanan sudah berstatus ${pesanan.status} dan tidak dapat diubah lagi.`,
+        },
+        { status: 400 }
+      );
+    }
+
     // Dikonfirmasi -> Disewa
     if (
       statusBaru === "disewa" &&

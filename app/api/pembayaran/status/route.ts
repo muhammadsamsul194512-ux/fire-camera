@@ -10,40 +10,68 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
 
+    const orderIdParam = searchParams.get("orderId")?.trim();
     const nomorPesanan = searchParams.get("pesanan")?.trim();
 
-    if (!nomorPesanan) {
+    if (!orderIdParam && !nomorPesanan) {
       return NextResponse.json(
         {
-          error: "Nomor pesanan wajib diisi.",
+          error: "Identitas pesanan wajib diisi.",
         },
         { status: 400 },
       );
     }
 
-    const { data: order, error: orderError } = await supabaseAdmin
-      .from("orders")
-      .select(
-        `
-          id,
-          nomor_pesanan,
-          total_harga,
-          status,
-          payment_expires_at,
-          expired_at,
-          payment (
-            id,
-            status,
-            catatan_admin,
-            uploaded_at,
-            verified_at,
-            bukti_pembayaran_url,
-            expires_at
-          )
-          `,
-      )
-      .eq("nomor_pesanan", nomorPesanan)
-      .maybeSingle();
+    const orderId = orderIdParam ? Number(orderIdParam) : null;
+
+    const { data: order, error: orderError } =
+      orderId && Number.isFinite(orderId)
+        ? await supabaseAdmin
+            .from("orders")
+            .select(
+              `
+              id,
+              nomor_pesanan,
+              total_harga,
+              status,
+              payment_expires_at,
+              expired_at,
+              payment (
+                id,
+                status,
+                catatan_admin,
+                uploaded_at,
+                verified_at,
+                bukti_pembayaran_url,
+                expires_at
+              )
+              `,
+            )
+            .eq("id", orderId)
+            .maybeSingle()
+        : await supabaseAdmin
+            .from("orders")
+            .select(
+              `
+              id,
+              nomor_pesanan,
+              total_harga,
+              status,
+              payment_expires_at,
+              expired_at,
+              payment (
+                id,
+                status,
+                catatan_admin,
+                uploaded_at,
+                verified_at,
+                bukti_pembayaran_url,
+                expires_at
+              )
+              `,
+            )
+            .eq("nomor_pesanan", nomorPesanan)
+            .maybeSingle();
 
     if (orderError) {
       console.error("Gagal mengambil status pembayaran:", orderError);
@@ -72,6 +100,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       data: {
+        id: order.id,
         nomor_pesanan: order.nomor_pesanan,
         total_harga: order.total_harga,
         status_pesanan: order.status,

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -16,20 +16,20 @@ type Pesanan = {
   total_harga: number;
   status: string;
   created_at: string;
-  customer: {
-    nama_lengkap: string;
-    whatsapp: string;
-    email: string | null;
+  customer?: {
+    nama_lengkap?: string;
+    whatsapp?: string;
+    email?: string | null;
   } | null;
-  detail: Array<{
-    jumlah: number;
-    harga_per_hari: number;
-    subtotal: number;
-    camera: {
-      nama: string;
-      brand: string;
+  detail?: Array<{
+    jumlah?: number;
+    harga_per_hari?: number;
+    subtotal?: number;
+    camera?: {
+      nama?: string;
+      brand?: string;
     } | null;
-  }>;
+  }> | null;
 };
 
 const statusLabelMap: Record<string, string> = {
@@ -38,8 +38,9 @@ const statusLabelMap: Record<string, string> = {
   dikonfirmasi: "Dikonfirmasi",
   disewa: "Disewa",
   selesai: "Selesai",
-  dibatalkan: "Dibatalkan",
+  dibatalkan: "Cancelled",
   ditolak: "Ditolak",
+  kedaluwarsa: "Expired",
 };
 
 const statusToneMap: Record<
@@ -51,8 +52,9 @@ const statusToneMap: Record<
   dikonfirmasi: "info",
   disewa: "purple",
   selesai: "success",
-  dibatalkan: "neutral",
+  dibatalkan: "danger",
   ditolak: "danger",
+  kedaluwarsa: "neutral",
 };
 
 function formatRupiah(value: number) {
@@ -97,7 +99,7 @@ export default function AdminPesananPage() {
         return;
       }
 
-      setPesanan(result.data || []);
+      setPesanan(Array.isArray(result.data) ? result.data : []);
     } catch (error) {
       console.error("Gagal mengambil pesanan:", error);
       setError("Terjadi kesalahan saat mengambil data pesanan.");
@@ -113,18 +115,22 @@ export default function AdminPesananPage() {
   const filteredPesanan = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return pesanan.filter((item) => {
+    return (pesanan || []).filter((item) => {
+      const detailList = Array.isArray(item.detail) ? item.detail : [];
+      const customer = item.customer ?? null;
+
       const matchesSearch =
         !query ||
         item.nomor_pesanan.toLowerCase().includes(query) ||
-        item.customer?.nama_lengkap?.toLowerCase().includes(query) ||
-        item.customer?.whatsapp?.toLowerCase().includes(query) ||
-        item.detail.some((detail) =>
-          detail.camera?.nama.toLowerCase().includes(query),
+        customer?.nama_lengkap?.toLowerCase().includes(query) ||
+        customer?.whatsapp?.toLowerCase().includes(query) ||
+        detailList.some((detail) =>
+          (detail.camera?.nama ?? "").toLowerCase().includes(query),
         );
 
       const matchesStatus =
         statusFilter === "all" || item.status === statusFilter;
+
       return matchesSearch && matchesStatus;
     });
   }, [pesanan, search, statusFilter]);
@@ -227,79 +233,91 @@ export default function AdminPesananPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredPesanan.map((item) => (
-                    <tr
-                      key={item.id}
-                      className="border-b border-gray-900 hover:bg-gray-900/80"
-                    >
-                      <td className="px-6 py-5 align-middle">
-                        <div className="font-semibold text-white">
-                          {item.nomor_pesanan}
-                        </div>
-                        <div className="mt-1 text-xs text-gray-500">
-                          {new Date(item.created_at).toLocaleDateString(
-                            "id-ID",
-                            { day: "2-digit", month: "short", year: "numeric" },
-                          )}
-                        </div>
-                      </td>
+                  {filteredPesanan.map((item) => {
+                    const detailList = Array.isArray(item.detail)
+                      ? item.detail
+                      : [];
 
-                      <td className="px-6 py-5 align-middle">
-                        <div className="font-medium text-white">
-                          {item.customer?.nama_lengkap || "-"}
-                        </div>
-                        <div className="mt-1 text-xs text-gray-400">
-                          {item.customer?.whatsapp || "-"}
-                        </div>
-                      </td>
+                    return (
+                      <tr
+                        key={item.id}
+                        className="border-b border-gray-900 hover:bg-gray-900/80"
+                      >
+                        <td className="px-6 py-5 align-middle">
+                          <div className="font-semibold text-white">
+                            {item.nomor_pesanan}
+                          </div>
+                          <div className="mt-1 text-xs text-gray-500">
+                            {new Date(item.created_at).toLocaleDateString(
+                              "id-ID",
+                              {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              },
+                            )}
+                          </div>
+                        </td>
 
-                      <td className="px-6 py-5 align-middle">
-                        <div className="space-y-1 text-sm text-gray-300">
-                          {item.detail.map((detail, index) => (
-                            <div key={`${item.id}-${index}`}>
-                              {detail.camera?.brand || "-"}{" "}
-                              {detail.camera?.nama || "-"}
-                            </div>
-                          ))}
-                        </div>
-                      </td>
+                        <td className="px-6 py-5 align-middle">
+                          <div className="font-medium text-white">
+                            {item.customer?.nama_lengkap || "-"}
+                          </div>
+                          <div className="mt-1 text-xs text-gray-400">
+                            {item.customer?.whatsapp || "-"}
+                          </div>
+                        </td>
 
-                      <td className="px-6 py-5 align-middle text-sm text-gray-300">
-                        <div>
-                          {new Date(
-                            `${item.tanggal_ambil}T00:00:00`,
-                          ).toLocaleDateString("id-ID", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })}{" "}
-                          -{" "}
-                          {new Date(
-                            `${item.tanggal_kembali}T00:00:00`,
-                          ).toLocaleDateString("id-ID", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })}
-                        </div>
-                        <div className="mt-1 text-xs text-gray-500">
-                          {item.jumlah_hari} hari
-                        </div>
-                      </td>
+                        <td className="px-6 py-5 align-middle">
+                          <div className="space-y-1 text-sm text-gray-300">
+                            {detailList.length === 0 ? (
+                              <div>-</div>
+                            ) : (
+                              detailList.map((detail, index) => (
+                                <div key={`${item.id}-${index}`}>
+                                  {detail.camera?.brand || "-"}{" "}
+                                  {detail.camera?.nama || "-"}
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </td>
 
-                      <td className="px-6 py-5 align-middle font-semibold text-yellow-300">
-                        {formatRupiah(item.total_harga)}
-                      </td>
+                        <td className="px-6 py-5 align-middle text-sm text-gray-300">
+                          <div>
+                            {new Date(
+                              `${item.tanggal_ambil}T00:00:00`,
+                            ).toLocaleDateString("id-ID", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}{" "}
+                            -{" "}
+                            {new Date(
+                              `${item.tanggal_kembali}T00:00:00`,
+                            ).toLocaleDateString("id-ID", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </div>
+                          <div className="mt-1 text-xs text-gray-500">
+                            {item.jumlah_hari} hari
+                          </div>
+                        </td>
 
-                      <td className="px-6 py-5 align-middle">
-                        <StatusBadge
-                          label={statusLabelMap[item.status] || item.status}
-                          tone={statusToneMap[item.status] || "neutral"}
-                        />
-                      </td>
+                        <td className="px-6 py-5 align-middle font-semibold text-yellow-300">
+                          {formatRupiah(item.total_harga)}
+                        </td>
 
-                      <td className="px-6 py-5 align-middle">
-                        <div className="flex justify-end">
+                        <td className="px-6 py-5 align-middle">
+                          <StatusBadge
+                            label={statusLabelMap[item.status] || item.status}
+                            tone={statusToneMap[item.status] || "neutral"}
+                          />
+                        </td>
+
+                        <td className="px-6 py-5 align-middle text-right">
                           <button
                             type="button"
                             onClick={() =>
@@ -309,10 +327,10 @@ export default function AdminPesananPage() {
                           >
                             Detail
                           </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

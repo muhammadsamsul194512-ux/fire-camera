@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/admin/StatusBadge";
+import { PaymentCountdown } from "@/components/PaymentCountdown";
 import { notify } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase";
 
@@ -16,6 +17,8 @@ type PesananDetail = {
   jumlah_hari: number;
   total_harga: number;
   status: string;
+  payment_expires_at?: string | null;
+  expired_at?: string | null;
   created_at: string;
   customer: {
     nama_lengkap: string;
@@ -39,8 +42,9 @@ const statusLabelMap: Record<string, string> = {
   dikonfirmasi: "Dikonfirmasi",
   disewa: "Disewa",
   selesai: "Selesai",
-  dibatalkan: "Dibatalkan",
+  dibatalkan: "Cancelled",
   ditolak: "Ditolak",
+  kedaluwarsa: "Expired",
 };
 
 const statusToneMap: Record<
@@ -52,8 +56,9 @@ const statusToneMap: Record<
   dikonfirmasi: "info",
   disewa: "purple",
   selesai: "success",
-  dibatalkan: "neutral",
+  dibatalkan: "danger",
   ditolak: "danger",
+  kedaluwarsa: "neutral",
 };
 
 function formatRupiah(value: number) {
@@ -82,10 +87,17 @@ export default function AdminPesananDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mutating, setMutating] = useState(false);
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function loadOrder() {
     setLoading(true);
     setError("");
+    setOrder(null);
 
     try {
       const {
@@ -109,7 +121,11 @@ export default function AdminPesananDetailPage() {
         return;
       }
 
-      setOrder(result.data || null);
+      const nextOrder = Array.isArray(result.data)
+        ? (result.data[0] ?? null)
+        : (result.data ?? null);
+
+      setOrder(nextOrder || null);
     } catch (error) {
       console.error("Error loading order detail:", error);
       setError("Terjadi kesalahan saat memuat detail pesanan.");
@@ -211,6 +227,17 @@ export default function AdminPesananDetailPage() {
     );
   }
 
+  const detailList = Array.isArray(order.detail) ? order.detail : [];
+  const paymentDeadline = order.payment_expires_at
+    ? new Date(order.payment_expires_at)
+    : null;
+  const timeRemainingMs = paymentDeadline
+    ? Math.max(paymentDeadline.getTime() - now, 0)
+    : 0;
+  const isExpired = Boolean(
+    order.expired_at || (paymentDeadline && timeRemainingMs <= 0),
+  );
+
   return (
     <main className="min-h-screen bg-black px-4 py-8 text-white md:px-6 lg:px-8">
       <div className="mx-auto max-w-5xl">
@@ -243,6 +270,38 @@ export default function AdminPesananDetailPage() {
                 month: "long",
                 year: "numeric",
               })}
+            </div>
+          </div>
+
+          <div className="mb-6 rounded-2xl border border-gray-800 bg-black/30 p-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.25em] text-gray-500">
+                  Batas Pembayaran
+                </p>
+                {paymentDeadline ? (
+                  <p className="mt-2 text-2xl font-bold text-yellow-300">
+                    {isExpired ? (
+                      "Kadaluarsa"
+                    ) : (
+                      <PaymentCountdown
+                        deadline={order.payment_expires_at ?? null}
+                        className="inline-block tabular-nums"
+                      />
+                    )}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-sm text-gray-400">
+                    Tidak ada tenggat pembayaran.
+                  </p>
+                )}
+              </div>
+
+              {paymentDeadline && !isExpired && (
+                <div className="rounded-full border border-yellow-500/30 bg-yellow-500/10 px-3 py-1.5 text-xs font-semibold text-yellow-300">
+                  Sisa waktu pembayaran
+                </div>
+              )}
             </div>
           </div>
 
@@ -302,25 +361,32 @@ export default function AdminPesananDetailPage() {
           <div className="mt-6 rounded-2xl border border-gray-800 bg-black/30 p-5">
             <h2 className="mb-4 text-lg font-semibold">Detail Kamera</h2>
             <div className="space-y-3">
-              {order.detail.map((detail, index) => (
-                <div
-                  key={`${order.id}-${index}`}
-                  className="flex flex-col gap-1 rounded-xl border border-gray-800 bg-gray-900/60 p-4 md:flex-row md:items-center md:justify-between"
-                >
-                  <div>
-                    <div className="font-medium text-white">
-                      {detail.camera?.brand || "-"} {detail.camera?.nama || "-"}
-                    </div>
-                    <div className="text-sm text-gray-400">
-                      {detail.jumlah} unit ×{" "}
-                      {formatRupiah(detail.harga_per_hari)} / hari
-                    </div>
-                  </div>
-                  <div className="font-semibold text-yellow-300">
-                    {formatRupiah(detail.subtotal)}
-                  </div>
+              {detailList.length === 0 ? (
+                <div className="text-sm text-gray-400">
+                  Data kamera tidak tersedia.
                 </div>
-              ))}
+              ) : (
+                detailList.map((detail, index) => (
+                  <div
+                    key={`${order.id}-${index}`}
+                    className="flex flex-col gap-1 rounded-xl border border-gray-800 bg-gray-900/60 p-4 md:flex-row md:items-center md:justify-between"
+                  >
+                    <div>
+                      <div className="font-medium text-white">
+                        {detail.camera?.brand || "-"}{" "}
+                        {detail.camera?.nama || "-"}
+                      </div>
+                      <div className="text-sm text-gray-400">
+                        {detail.jumlah} unit ×{" "}
+                        {formatRupiah(detail.harga_per_hari)} / hari
+                      </div>
+                    </div>
+                    <div className="font-semibold text-yellow-300">
+                      {formatRupiah(detail.subtotal)}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

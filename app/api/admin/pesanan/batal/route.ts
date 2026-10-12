@@ -90,11 +90,14 @@ export async function PATCH(request: Request) {
       );
     }
 
-    // 6. Cegah pembatalan status akhir
+    // 6. Cegah pembatalan status akhir atau kedaluwarsa
     if (
-      order.status === "selesai" ||
-      order.status === "dibatalkan" ||
-      order.status === "ditolak"
+      [
+        "selesai",
+        "dibatalkan",
+        "ditolak",
+        "kedaluwarsa",
+      ].includes(order.status)
     ) {
       return NextResponse.json(
         {
