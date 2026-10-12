@@ -9,6 +9,7 @@ import { usePengaturan } from "@/hooks/usePengaturan";
 import { formatRupiah, formatTanggal } from "@/lib/utils";
 
 type Pesanan = {
+  id: number;
   nomor_pesanan: string;
   tanggal_ambil: string;
   jam_ambil: string;
@@ -28,7 +29,12 @@ type Pesanan = {
     jumlah: number;
     harga_per_hari: number;
     subtotal: number;
-    camera: { id: number; nama: string; brand: string; gambar_url: string | null } | null;
+    camera: {
+      id: number;
+      nama: string;
+      brand: string;
+      gambar_url: string | null;
+    } | null;
   }>;
   payment:
     | {
@@ -102,15 +108,18 @@ export default function RiwayatPage() {
           </p>
           <h1 className="mt-2 text-4xl font-bold">Cek Status Pesanan</h1>
           <p className="mt-3 text-zinc-400">
-            Masukkan nomor pesanan dan nomor WhatsApp yang digunakan saat memesan.
+            Masukkan nomor pesanan dan nomor WhatsApp yang digunakan saat
+            memesan.
           </p>
         </div>
       </section>
 
       {/* FORM */}
       <section className="mx-auto w-full max-w-2xl px-6 py-12">
-        <form onSubmit={cekPesanan} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-
+        <form
+          onSubmit={cekPesanan}
+          className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6"
+        >
           <div>
             <label className="mb-1.5 block text-sm font-medium">
               Nomor Pesanan
@@ -151,7 +160,9 @@ export default function RiwayatPage() {
         {/* Error */}
         {error && (
           <div className="mt-4 rounded-2xl border border-red-900 bg-red-950/30 p-5">
-            <p className="font-semibold text-red-400">Pesanan tidak ditemukan</p>
+            <p className="font-semibold text-red-400">
+              Pesanan tidak ditemukan
+            </p>
             <p className="mt-1 text-sm text-red-300">{error}</p>
           </div>
         )}
@@ -161,12 +172,13 @@ export default function RiwayatPage() {
       {pesanan && (
         <section className="mx-auto w-full max-w-2xl px-6 pb-14">
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-
             {/* Header */}
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
               <div>
                 <p className="text-xs text-zinc-500">Nomor Pesanan</p>
-                <p className="mt-1 text-xl font-bold">{pesanan.nomor_pesanan}</p>
+                <p className="mt-1 text-xl font-bold">
+                  {pesanan.nomor_pesanan}
+                </p>
               </div>
               <StatusBadge status={pesanan.status} />
             </div>
@@ -176,7 +188,9 @@ export default function RiwayatPage() {
               <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
                 Data Pelanggan
               </p>
-              <p className="mt-2 font-semibold">{pesanan.customer.nama_lengkap}</p>
+              <p className="mt-2 font-semibold">
+                {pesanan.customer.nama_lengkap}
+              </p>
               <p className="mt-1 text-sm text-zinc-400">
                 WhatsApp: {pesanan.customer.whatsapp}
               </p>
@@ -196,19 +210,23 @@ export default function RiwayatPage() {
                 <div>
                   <p className="text-zinc-500">Tanggal Ambil</p>
                   <p className="mt-0.5 font-semibold">
-                    {formatTanggal(pesanan.tanggal_ambil)}, pukul {pesanan.jam_ambil}
+                    {formatTanggal(pesanan.tanggal_ambil)}, pukul{" "}
+                    {pesanan.jam_ambil}
                   </p>
                 </div>
                 <div>
                   <p className="text-zinc-500">Tanggal Kembali</p>
                   <p className="mt-0.5 font-semibold">
-                    {formatTanggal(pesanan.tanggal_kembali)}, pukul {pesanan.jam_kembali}
+                    {formatTanggal(pesanan.tanggal_kembali)}, pukul{" "}
+                    {pesanan.jam_kembali}
                   </p>
                 </div>
               </div>
               <p className="mt-3 text-sm">
                 <span className="text-zinc-500">Lama sewa: </span>
-                <span className="font-semibold">{pesanan.jumlah_hari} hari</span>
+                <span className="font-semibold">
+                  {pesanan.jumlah_hari} hari
+                </span>
               </p>
             </div>
 
@@ -218,23 +236,39 @@ export default function RiwayatPage() {
                 Kamera yang Disewa
               </p>
               <div className="mt-3 space-y-3">
-                {pesanan.order_detail.map((detail) => (
-                  <div
-                    key={detail.id}
-                    className="flex items-center justify-between gap-3 rounded-xl bg-zinc-950 px-4 py-3 text-sm"
-                  >
-                    <div>
-                      <p className="font-semibold">
-                        {detail.camera?.nama || "Kamera"}
-                      </p>
-                      <p className="text-zinc-500">{detail.camera?.brand || ""}</p>
+                {(Array.isArray(pesanan.order_detail)
+                  ? pesanan.order_detail
+                  : []
+                ).length === 0 ? (
+                  <p className="text-sm text-zinc-400">
+                    Data kamera untuk pesanan ini belum tersedia.
+                  </p>
+                ) : (
+                  (Array.isArray(pesanan.order_detail)
+                    ? pesanan.order_detail
+                    : []
+                  ).map((detail) => (
+                    <div
+                      key={detail.id}
+                      className="flex items-center justify-between gap-3 rounded-xl bg-zinc-950 px-4 py-3 text-sm"
+                    >
+                      <div>
+                        <p className="font-semibold">
+                          {detail.camera?.nama || "Kamera"}
+                        </p>
+                        <p className="text-zinc-500">
+                          {detail.camera?.brand || ""}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold">{detail.jumlah} unit</p>
+                        <p className="text-zinc-500">
+                          {formatRupiah(detail.subtotal)}
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold">{detail.jumlah} unit</p>
-                      <p className="text-zinc-500">{formatRupiah(detail.subtotal)}</p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
 
@@ -273,7 +307,9 @@ export default function RiwayatPage() {
                     payment.status === "ditolak" ||
                     payment.status === "perlu_upload_ulang") && (
                     <Link
-                      href={`/pembayaran?pesanan=${encodeURIComponent(pesanan.nomor_pesanan)}&total=${pesanan.total_harga}`}
+                      href={
+                        pesanan.id ? `/pembayaran/${pesanan.id}` : "/pembayaran"
+                      }
                       className="mt-4 inline-block rounded-full bg-yellow-400 px-5 py-2 text-sm font-semibold text-black transition hover:bg-yellow-300"
                     >
                       Upload Bukti Pembayaran →

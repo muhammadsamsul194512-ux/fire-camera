@@ -4,38 +4,29 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY!;
 
-const supabaseAdmin = createClient(
-  supabaseUrl,
-  supabaseSecretKey
-);
+const supabaseAdmin = createClient(supabaseUrl, supabaseSecretKey);
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    const nomorPesanan = String(
-      body.nomorPesanan || ""
-    ).trim();
+    const nomorPesanan = String(body.nomorPesanan || "").trim();
 
-    const whatsapp = String(
-      body.whatsapp || ""
-    ).trim();
+    const whatsapp = String(body.whatsapp || "").trim();
 
     if (!nomorPesanan || !whatsapp) {
       return NextResponse.json(
         {
-          error:
-            "Nomor pesanan dan nomor WhatsApp wajib diisi.",
+          error: "Nomor pesanan dan nomor WhatsApp wajib diisi.",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    const { data: order, error: orderError } =
-      await supabaseAdmin
-        .from("orders")
-        .select(
-          `
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from("orders")
+      .select(
+        `
           id,
           nomor_pesanan,
           tanggal_ambil,
@@ -76,33 +67,28 @@ payment (
   uploaded_at,
   verified_at
 )
-          `
-        )
-        .eq("nomor_pesanan", nomorPesanan)
-        .maybeSingle();
+          `,
+      )
+      .eq("nomor_pesanan", nomorPesanan)
+      .maybeSingle();
 
     if (orderError) {
-      console.error(
-        "Gagal mengambil riwayat pesanan:",
-        orderError
-      );
+      console.error("Gagal mengambil riwayat pesanan:", orderError);
 
       return NextResponse.json(
         {
-          error:
-            "Terjadi kesalahan saat mengambil data pesanan.",
+          error: "Terjadi kesalahan saat mengambil data pesanan.",
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     if (!order) {
       return NextResponse.json(
         {
-          error:
-            "Pesanan tidak ditemukan atau data tidak sesuai.",
+          error: "Pesanan tidak ditemukan atau data tidak sesuai.",
         },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -113,58 +99,61 @@ payment (
     if (!customer) {
       return NextResponse.json(
         {
-          error:
-            "Data pelanggan untuk pesanan ini tidak ditemukan.",
+          error: "Data pelanggan untuk pesanan ini tidak ditemukan.",
         },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     if (customer.whatsapp !== whatsapp) {
       return NextResponse.json(
         {
-          error:
-            "Nomor pesanan atau nomor WhatsApp tidak sesuai.",
+          error: "Nomor pesanan atau nomor WhatsApp tidak sesuai.",
         },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
+    const normalizedPayment = Array.isArray(order.payment)
+      ? order.payment
+      : order.payment
+        ? [order.payment]
+        : [];
+
+    const normalizedOrderDetail = Array.isArray(order.order_detail)
+      ? order.order_detail
+      : [];
+
     return NextResponse.json({
-  success: true,
-  data: {
-    nomor_pesanan: order.nomor_pesanan,
-    tanggal_ambil: order.tanggal_ambil,
-    jam_ambil: order.jam_ambil,
-    tanggal_kembali: order.tanggal_kembali,
-    jam_kembali: order.jam_kembali,
-    jumlah_hari: order.jumlah_hari,
-    total_harga: order.total_harga,
-    status: order.status,
-    created_at: order.created_at,
-    payment: order.payment,
-
-    customer: {
-      nama_lengkap: customer.nama_lengkap,
-      whatsapp: customer.whatsapp,
-      email: customer.email,
-    },
-
-    order_detail: order.order_detail,
-  },
-});
+      success: true,
+      data: {
+        id: order.id,
+        nomor_pesanan: order.nomor_pesanan,
+        tanggal_ambil: order.tanggal_ambil,
+        jam_ambil: order.jam_ambil,
+        tanggal_kembali: order.tanggal_kembali,
+        jam_kembali: order.jam_kembali,
+        jumlah_hari: order.jumlah_hari,
+        total_harga: order.total_harga,
+        status: order.status,
+        created_at: order.created_at,
+        payment: normalizedPayment[0] ?? null,
+        customer: {
+          nama_lengkap: customer.nama_lengkap,
+          whatsapp: customer.whatsapp,
+          email: customer.email,
+        },
+        order_detail: normalizedOrderDetail,
+      },
+    });
   } catch (error) {
-    console.error(
-      "Error API riwayat:",
-      error
-    );
+    console.error("Error API riwayat:", error);
 
     return NextResponse.json(
       {
-        error:
-          "Terjadi kesalahan pada server.",
+        error: "Terjadi kesalahan pada server.",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -14,7 +14,7 @@ type Payment = {
   bukti_pembayaran_url: string | null;
   uploaded_at: string | null;
   created_at: string | null;
-  order: {
+  order?: {
     id: number;
     nomor_pesanan: string;
     total_harga: number;
@@ -80,7 +80,7 @@ export default function AdminPembayaranPage() {
         return;
       }
 
-      setPayments(result.data || []);
+      setPayments(Array.isArray(result.data) ? result.data : []);
     } catch (error) {
       console.error("Gagal mengambil pembayaran:", error);
       setError("Terjadi kesalahan saat mengambil data pembayaran.");
@@ -105,17 +105,33 @@ export default function AdminPembayaranPage() {
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.25em] text-yellow-400">Admin</p>
             <h1 className="mt-2 text-3xl font-bold">Verifikasi Pembayaran</h1>
-            <p className="mt-2 text-sm text-gray-400">Konsentrasi pada pembayaran yang membutuhkan tindakan admin saat ini.</p>
+            <p className="mt-2 text-sm text-gray-400">
+              Konsentrasi pada pembayaran yang membutuhkan tindakan admin saat ini.
+            </p>
           </div>
 
           <div className="flex gap-3">
-            <button type="button" onClick={() => router.push("/admin")} className="rounded-full border border-gray-700 px-5 py-3 text-sm font-semibold text-gray-200 transition hover:border-yellow-400 hover:text-yellow-400">? Dashboard</button>
-            <button type="button" onClick={() => void ambilPembayaran()} className="rounded-full bg-yellow-400 px-5 py-3 text-sm font-semibold text-black transition hover:bg-yellow-300">? Refresh</button>
+            <button
+              type="button"
+              onClick={() => router.push("/admin")}
+              className="rounded-full border border-gray-700 px-5 py-3 text-sm font-semibold text-gray-200 transition hover:border-yellow-400 hover:text-yellow-400"
+            >
+              Dashboard
+            </button>
+            <button
+              type="button"
+              onClick={() => void ambilPembayaran()}
+              className="rounded-full bg-yellow-400 px-5 py-3 text-sm font-semibold text-black transition hover:bg-yellow-300"
+            >
+              Refresh
+            </button>
           </div>
         </div>
 
         {error && (
-          <div className="mb-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">{error}</div>
+          <div className="mb-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+            {error}
+          </div>
         )}
 
         <section className="mb-6 rounded-2xl border border-gray-800 bg-gray-950 p-4 md:p-5">
@@ -162,13 +178,27 @@ export default function AdminPembayaranPage() {
                   {filteredPayments.map((payment) => (
                     <tr key={payment.id} className="border-b border-gray-900 hover:bg-gray-900/80">
                       <td className="px-6 py-5 align-middle">
-                        <div className="font-semibold text-white">{payment.order?.nomor_pesanan || `#${payment.order_id}`}</div>
-                        <div className="mt-1 text-xs text-gray-500">{payment.uploaded_at ? new Date(payment.uploaded_at).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "-"}</div>
+                        <div className="font-semibold text-white">
+                          {payment.order?.nomor_pesanan || `#${payment.order_id}`}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {payment.uploaded_at
+                            ? new Date(payment.uploaded_at).toLocaleDateString("id-ID", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              })
+                            : "-"}
+                        </div>
                       </td>
 
                       <td className="px-6 py-5 align-middle">
-                        <div className="font-medium text-white">{payment.order?.customer?.nama_lengkap || "-"}</div>
-                        <div className="mt-1 text-xs text-gray-400">{payment.order?.customer?.whatsapp || "-"}</div>
+                        <div className="font-medium text-white">
+                          {payment.order?.customer?.nama_lengkap || "-"}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-400">
+                          {payment.order?.customer?.whatsapp || "-"}
+                        </div>
                       </td>
 
                       <td className="px-6 py-5 align-middle text-sm text-gray-300">
@@ -176,15 +206,26 @@ export default function AdminPembayaranPage() {
                         {payment.bank && <div className="mt-1 text-xs text-gray-500">{payment.bank}</div>}
                       </td>
 
-                      <td className="px-6 py-5 align-middle font-semibold text-yellow-300">{payment.order ? formatRupiah(payment.order.total_harga) : "-"}</td>
+                      <td className="px-6 py-5 align-middle font-semibold text-yellow-300">
+                        {payment.order ? formatRupiah(payment.order.total_harga) : "-"}
+                      </td>
 
                       <td className="px-6 py-5 align-middle">
-                        <StatusBadge label={statusLabelMap[payment.status] || payment.status} tone={statusToneMap[payment.status] || "neutral"} />
+                        <StatusBadge
+                          label={statusLabelMap[payment.status] || payment.status}
+                          tone={statusToneMap[payment.status] || "neutral"}
+                        />
                       </td>
 
                       <td className="px-6 py-5 align-middle">
                         <div className="flex justify-end">
-                          <button type="button" onClick={() => router.push(`/admin/pesanan/${payment.order_id}`)} className="rounded-full border border-yellow-400 px-4 py-2 text-xs font-semibold text-yellow-400 transition hover:bg-yellow-400 hover:text-black">Review</button>
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/admin/pesanan/${payment.order_id}`)}
+                            className="rounded-full border border-yellow-400 px-4 py-2 text-xs font-semibold text-yellow-400 transition hover:bg-yellow-400 hover:text-black"
+                          >
+                            Review
+                          </button>
                         </div>
                       </td>
                     </tr>
