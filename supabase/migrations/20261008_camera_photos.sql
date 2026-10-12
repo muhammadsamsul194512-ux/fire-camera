@@ -15,11 +15,13 @@ create index if not exists idx_camera_photo_camera_id_sort
 
 alter table public.camera_photo enable row level security;
 
+drop policy if exists "Camera photos are readable by everyone" on public.camera_photo;
 create policy "Camera photos are readable by everyone"
   on public.camera_photo
   for select
   using (true);
 
+drop policy if exists "Only admin users can manage camera photos" on public.camera_photo;
 create policy "Only admin users can manage camera photos"
   on public.camera_photo
   for all

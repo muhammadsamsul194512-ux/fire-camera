@@ -5,6 +5,7 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import StatusBadge from "@/components/StatusBadge";
+import { PaymentCountdown } from "@/components/PaymentCountdown";
 import { usePengaturan } from "@/hooks/usePengaturan";
 import { formatRupiah, formatTanggal } from "@/lib/utils";
 
@@ -18,6 +19,7 @@ type Pesanan = {
   jumlah_hari: number;
   total_harga: number;
   status: string;
+  payment_expires_at: string | null;
   created_at: string;
   customer: {
     nama_lengkap: string;
@@ -296,6 +298,19 @@ export default function RiwayatPage() {
                       </p>
                     </div>
                   )}
+                  {payment.status === "menunggu_pembayaran" &&
+                    pesanan.payment_expires_at && (
+                      <div className="mt-3 rounded-xl border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm text-yellow-100">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-yellow-300">
+                          Sisa waktu pembayaran
+                        </p>
+                        <div className="mt-1 font-semibold tabular-nums">
+                          <PaymentCountdown
+                            deadline={pesanan.payment_expires_at}
+                          />
+                        </div>
+                      </div>
+                    )}
                   {payment.uploaded_at && (
                     <p className="mt-3 text-xs text-zinc-500">
                       Bukti pembayaran sudah diunggah.

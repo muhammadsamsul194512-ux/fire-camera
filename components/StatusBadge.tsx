@@ -25,8 +25,8 @@ const orderStatusMap: Record<string, StatusConfig> = {
     className: "bg-green-500/15 text-green-400 border border-green-500/30",
   },
   dibatalkan: {
-    label: "Dibatalkan",
-    className: "bg-zinc-500/15 text-zinc-400 border border-zinc-500/30",
+    label: "Cancelled",
+    className: "bg-rose-500/15 text-rose-300 border border-rose-500/30",
   },
   ditolak: {
     label: "Ditolak",
@@ -37,12 +37,12 @@ const orderStatusMap: Record<string, StatusConfig> = {
     className: "bg-red-500/15 text-red-400 border border-red-500/30",
   },
   kedaluwarsa: {
-    label: "Kedaluwarsa",
-    className: "bg-orange-500/15 text-orange-300 border border-orange-500/30",
+    label: "Expired",
+    className: "bg-slate-500/15 text-slate-300 border border-slate-500/30",
   },
   expired: {
     label: "Expired",
-    className: "bg-orange-500/15 text-orange-300 border border-orange-500/30",
+    className: "bg-slate-500/15 text-slate-300 border border-slate-500/30",
   },
 };
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/admin/StatusBadge";
+import { PaymentCountdown } from "@/components/PaymentCountdown";
 import { notify } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase";
 
@@ -41,8 +42,9 @@ const statusLabelMap: Record<string, string> = {
   dikonfirmasi: "Dikonfirmasi",
   disewa: "Disewa",
   selesai: "Selesai",
-  dibatalkan: "Dibatalkan",
+  dibatalkan: "Cancelled",
   ditolak: "Ditolak",
+  kedaluwarsa: "Expired",
 };
 
 const statusToneMap: Record<
@@ -54,8 +56,9 @@ const statusToneMap: Record<
   dikonfirmasi: "info",
   disewa: "purple",
   selesai: "success",
-  dibatalkan: "neutral",
+  dibatalkan: "danger",
   ditolak: "danger",
+  kedaluwarsa: "neutral",
 };
 
 function formatRupiah(value: number) {
@@ -231,8 +234,6 @@ export default function AdminPesananDetailPage() {
   const timeRemainingMs = paymentDeadline
     ? Math.max(paymentDeadline.getTime() - now, 0)
     : 0;
-  const countdownMinutes = Math.floor(timeRemainingMs / 60000);
-  const countdownSeconds = Math.floor((timeRemainingMs % 60000) / 1000);
   const isExpired = Boolean(
     order.expired_at || (paymentDeadline && timeRemainingMs <= 0),
   );
@@ -280,9 +281,14 @@ export default function AdminPesananDetailPage() {
                 </p>
                 {paymentDeadline ? (
                   <p className="mt-2 text-2xl font-bold text-yellow-300">
-                    {isExpired
-                      ? "Kadaluarsa"
-                      : `${String(countdownMinutes).padStart(2, "0")}:${String(countdownSeconds).padStart(2, "0")}`}
+                    {isExpired ? (
+                      "Kadaluarsa"
+                    ) : (
+                      <PaymentCountdown
+                        deadline={order.payment_expires_at ?? null}
+                        className="inline-block tabular-nums"
+                      />
+                    )}
                   </p>
                 ) : (
                   <p className="mt-2 text-sm text-gray-400">

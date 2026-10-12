@@ -36,6 +36,7 @@ export async function POST(request: Request) {
           jumlah_hari,
           total_harga,
           status,
+          payment_expires_at,
           created_at,
           customer:customer_id (
             id,
@@ -136,6 +137,7 @@ payment (
         jumlah_hari: order.jumlah_hari,
         total_harga: order.total_harga,
         status: order.status,
+        payment_expires_at: order.payment_expires_at || null,
         created_at: order.created_at,
         payment: normalizedPayment[0] ?? null,
         customer: {

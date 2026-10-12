@@ -38,8 +38,9 @@ const statusLabelMap: Record<string, string> = {
   dikonfirmasi: "Dikonfirmasi",
   disewa: "Disewa",
   selesai: "Selesai",
-  dibatalkan: "Dibatalkan",
+  dibatalkan: "Cancelled",
   ditolak: "Ditolak",
+  kedaluwarsa: "Expired",
 };
 
 const statusToneMap: Record<
@@ -51,8 +52,9 @@ const statusToneMap: Record<
   dikonfirmasi: "info",
   disewa: "purple",
   selesai: "success",
-  dibatalkan: "neutral",
+  dibatalkan: "danger",
   ditolak: "danger",
+  kedaluwarsa: "neutral",
 };
 
 function formatRupiah(value: number) {
@@ -232,7 +234,9 @@ export default function AdminPesananPage() {
                 </thead>
                 <tbody>
                   {filteredPesanan.map((item) => {
-                    const detailList = Array.isArray(item.detail) ? item.detail : [];
+                    const detailList = Array.isArray(item.detail)
+                      ? item.detail
+                      : [];
 
                     return (
                       <tr
@@ -244,11 +248,14 @@ export default function AdminPesananPage() {
                             {item.nomor_pesanan}
                           </div>
                           <div className="mt-1 text-xs text-gray-500">
-                            {new Date(item.created_at).toLocaleDateString("id-ID", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })}
+                            {new Date(item.created_at).toLocaleDateString(
+                              "id-ID",
+                              {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              },
+                            )}
                           </div>
                         </td>
 
@@ -278,23 +285,21 @@ export default function AdminPesananPage() {
 
                         <td className="px-6 py-5 align-middle text-sm text-gray-300">
                           <div>
-                            {new Date(`${item.tanggal_ambil}T00:00:00`).toLocaleDateString(
-                              "id-ID",
-                              {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                              },
-                            )}{" "}
+                            {new Date(
+                              `${item.tanggal_ambil}T00:00:00`,
+                            ).toLocaleDateString("id-ID", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}{" "}
                             -{" "}
-                            {new Date(`${item.tanggal_kembali}T00:00:00`).toLocaleDateString(
-                              "id-ID",
-                              {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                              },
-                            )}
+                            {new Date(
+                              `${item.tanggal_kembali}T00:00:00`,
+                            ).toLocaleDateString("id-ID", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}
                           </div>
                           <div className="mt-1 text-xs text-gray-500">
                             {item.jumlah_hari} hari
@@ -315,7 +320,9 @@ export default function AdminPesananPage() {
                         <td className="px-6 py-5 align-middle text-right">
                           <button
                             type="button"
-                            onClick={() => router.push(`/admin/pesanan/${item.id}`)}
+                            onClick={() =>
+                              router.push(`/admin/pesanan/${item.id}`)
+                            }
                             className="rounded-full border border-yellow-400 px-4 py-2 text-xs font-semibold text-yellow-400 transition hover:bg-yellow-400 hover:text-black"
                           >
                             Detail

@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import StatusBadge from "@/components/StatusBadge";
+import { PaymentCountdown } from "@/components/PaymentCountdown";
 import { usePengaturan } from "@/hooks/usePengaturan";
 import { formatRupiah } from "@/lib/utils";
 
@@ -111,8 +112,6 @@ function PembayaranDetailContent() {
   const timeRemainingMs = paymentDeadline
     ? Math.max(paymentDeadline.getTime() - now, 0)
     : 0;
-  const countdownMinutes = Math.floor(timeRemainingMs / 60000);
-  const countdownSeconds = Math.floor((timeRemainingMs % 60000) / 1000);
 
   const sedangUploadUlang =
     payment?.status === "perlu_upload_ulang" || payment?.status === "ditolak";
@@ -345,10 +344,12 @@ function PembayaranDetailContent() {
                     <p className="text-[10px] uppercase tracking-[0.2em] text-yellow-300">
                       Countdown pembayaran
                     </p>
-                    <p className="mt-2 text-2xl font-bold text-yellow-200">
-                      {String(countdownMinutes).padStart(2, "0")}:
-                      {String(countdownSeconds).padStart(2, "0")}
-                    </p>
+                    <div className="mt-2 text-2xl font-bold text-yellow-200 tabular-nums">
+                      <PaymentCountdown
+                        deadline={paymentExpiresAt}
+                        className="inline-block"
+                      />
+                    </div>
                     <p className="mt-1 text-xs text-zinc-300">
                       Batas pembayaran:{" "}
                       {new Date(paymentExpiresAt).toLocaleString("id-ID", {
