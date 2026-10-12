@@ -1,8 +1,8 @@
-
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { StatusBadge } from "@/components/admin/StatusBadge";
 import { supabase } from "@/lib/supabase";
 
 type Pesanan = {
@@ -21,7 +21,7 @@ type Pesanan = {
     whatsapp: string;
     email: string | null;
   } | null;
-  detail: {
+  detail: Array<{
     jumlah: number;
     harga_per_hari: number;
     subtotal: number;
@@ -29,577 +29,295 @@ type Pesanan = {
       nama: string;
       brand: string;
     } | null;
-  }[];
+  }>;
 };
+
+const statusLabelMap: Record<string, string> = {
+  menunggu_pembayaran: "Menunggu Pembayaran",
+  menunggu_verifikasi: "Menunggu Verifikasi",
+  dikonfirmasi: "Dikonfirmasi",
+  disewa: "Disewa",
+  selesai: "Selesai",
+  dibatalkan: "Dibatalkan",
+  ditolak: "Ditolak",
+};
+
+const statusToneMap: Record<
+  string,
+  "neutral" | "warning" | "success" | "danger" | "info" | "purple"
+> = {
+  menunggu_pembayaran: "warning",
+  menunggu_verifikasi: "warning",
+  dikonfirmasi: "info",
+  disewa: "purple",
+  selesai: "success",
+  dibatalkan: "neutral",
+  ditolak: "danger",
+};
+
+function formatRupiah(value: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+}
 
 export default function AdminPesananPage() {
   const router = useRouter();
-
   const [pesanan, setPesanan] = useState<Pesanan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [membatalkanId, setMembatalkanId] = useState<number | null>(
-    null
-  );
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
-  const [mengubahStatusId, setMengubahStatusId] = useState<number | null>(
-  null
-);
+  async function ambilPesanan() {
+    setLoading(true);
+    setError("");
 
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-async function ambilPesanan() {
-  setLoading(true);
-  setError("");
-
-  try {
-    // Ambil session login dari Supabase
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
-
-    if (sessionError || !session) {
-  router.replace("/admin/login");
-  return;
-}
-
-    // Kirim access token ke API admin
-    const response = await fetch(
-      "/api/admin/pesanan",
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
+      if (sessionError || !session) {
+        router.replace("/admin/login");
+        return;
       }
-    );
 
-    const result = await response.json();
+      const response = await fetch("/api/admin/pesanan", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
 
-    if (!response.ok) {
-      setError(
-        result.error ||
-          "Gagal mengambil data pesanan."
-      );
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.error || "Gagal mengambil data pesanan.");
+        return;
+      }
+
+      setPesanan(result.data || []);
+    } catch (error) {
+      console.error("Gagal mengambil pesanan:", error);
+      setError("Terjadi kesalahan saat mengambil data pesanan.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setPesanan(
-      (result.data as Pesanan[]) || []
-    );
-  } catch (error) {
-    console.error(
-      "Gagal mengambil pesanan:",
-      error
-    );
-
-    setError(
-      "Terjadi kesalahan saat mengambil data pesanan."
-    );
-  } finally {
-    setLoading(false);
   }
-}
 
   useEffect(() => {
-  ambilPesanan();
-}, [router]);
+    void ambilPesanan();
+  }, [router]);
 
+  const filteredPesanan = useMemo(() => {
+    const query = search.trim().toLowerCase();
 
-async function batalkanPesanan(orderId: number) {
-  const yakin = window.confirm(
-    "Apakah kamu yakin ingin membatalkan pesanan ini?"
-  );
+    return pesanan.filter((item) => {
+      const matchesSearch =
+        !query ||
+        item.nomor_pesanan.toLowerCase().includes(query) ||
+        item.customer?.nama_lengkap?.toLowerCase().includes(query) ||
+        item.customer?.whatsapp?.toLowerCase().includes(query) ||
+        item.detail.some((detail) =>
+          detail.camera?.nama.toLowerCase().includes(query),
+        );
 
-  if (!yakin) {
-    return;
-  }
-
-  setMembatalkanId(orderId);
-  setError("");
-
-  try {
-    // Ambil session login admin
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
-
-    if (sessionError || !session) {
-      setError("Kamu harus login sebagai admin.");
-      return;
-    }
-
-    // Kirim access token ke API
-    const response = await fetch(
-      "/api/admin/pesanan/batal",
-      {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          orderId,
-        }),
-      }
-    );
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      setError(
-        result.error ||
-          "Gagal membatalkan pesanan."
-      );
-      return;
-    }
-
-    // Muat ulang daftar pesanan
-    await ambilPesanan();
-  } catch (error) {
-    console.error(
-      "Error membatalkan pesanan:",
-      error
-    );
-
-    setError(
-      "Terjadi kesalahan saat membatalkan pesanan."
-    );
-  } finally {
-    setMembatalkanId(null);
-  }
-}
-
-async function ubahStatusPesanan(
-  orderId: number,
-  statusBaru: "disewa" | "selesai"
-) {
-  const namaStatus =
-    statusBaru === "disewa"
-      ? "Disewa"
-      : "Selesai";
-
-  const yakin = window.confirm(
-    `Apakah kamu yakin ingin mengubah status pesanan menjadi ${namaStatus}?`
-  );
-
-  if (!yakin) {
-    return;
-  }
-
-  setMengubahStatusId(orderId);
-  setError("");
-
-  try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    if (!session?.access_token) {
-      setError(
-        "Sesi admin tidak ditemukan. Silakan login kembali."
-      );
-      return;
-    }
-
-    const response = await fetch(
-      "/api/admin/pesanan/status",
-      {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          orderId,
-          status: statusBaru,
-        }),
-      }
-    );
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      setError(
-        result.error ||
-          "Gagal mengubah status pesanan."
-      );
-      return;
-    }
-
-    await ambilPesanan();
-  } catch (error) {
-    console.error(
-      "Error mengubah status pesanan:",
-      error
-    );
-
-    setError(
-      "Terjadi kesalahan saat mengubah status pesanan."
-    );
-  } finally {
-    setMengubahStatusId(null);
-  }
-}
-
-  function formatRupiah(nilai: number) {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(Number(nilai));
-  }
-
-  function formatTanggal(tanggal: string) {
-    return new Date(
-      `${tanggal}T00:00:00`
-    ).toLocaleDateString("id-ID", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
+      const matchesStatus =
+        statusFilter === "all" || item.status === statusFilter;
+      return matchesSearch && matchesStatus;
     });
-  }
-
-  function warnaStatus(status: string) {
-    switch (status) {
-      case "menunggu_pembayaran":
-        return "bg-yellow-100 text-yellow-800";
-
-      case "menunggu_verifikasi":
-        return "bg-orange-100 text-orange-800";
-
-      case "dikonfirmasi":
-        return "bg-blue-100 text-blue-800";
-
-      case "disewa":
-        return "bg-purple-100 text-purple-800";
-
-      case "selesai":
-        return "bg-green-100 text-green-800";
-
-      case "dibatalkan":
-        return "bg-gray-200 text-gray-700";
-
-      case "ditolak":
-        return "bg-red-100 text-red-800";
-
-      default:
-        return "bg-gray-100 text-gray-700";
-    }
-  }
-
-  function namaStatus(status: string) {
-    switch (status) {
-      case "menunggu_pembayaran":
-        return "Menunggu Pembayaran";
-
-      case "menunggu_verifikasi":
-        return "Menunggu Verifikasi";
-
-      case "dikonfirmasi":
-        return "Dikonfirmasi";
-
-      case "disewa":
-        return "Sedang Disewa";
-
-      case "selesai":
-        return "Selesai";
-
-      case "dibatalkan":
-        return "Dibatalkan";
-
-      case "ditolak":
-        return "Ditolak";
-
-      default:
-        return status;
-    }
-  }
-
-  function bolehDibatalkan(status: string) {
-    return (
-      status !== "selesai" &&
-      status !== "dibatalkan" &&
-      status !== "ditolak"
-    );
-  }
+  }, [pesanan, search, statusFilter]);
 
   return (
-    <main className="min-h-screen bg-gray-950 px-6 py-10 text-white">
+    <main className="min-h-screen bg-black px-4 py-8 text-white md:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
-        {/* HEADER */}
         <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <a
-              href="/admin"
-              className="mb-3 inline-block text-sm text-gray-400 transition hover:text-yellow-400"
-            >
-              ← Kembali ke Dashboard
-            </a>
-
-            <h1 className="text-3xl font-bold">
-              Kelola{" "}
-              <span className="text-yellow-400">
-                Pesanan
-              </span>
-            </h1>
-
-            <p className="mt-2 text-gray-400">
-              Lihat dan pantau semua pesanan penyewaan
-              kamera.
+            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-yellow-400">
+              Admin
+            </p>
+            <h1 className="mt-2 text-3xl font-bold">Kelola Pesanan</h1>
+            <p className="mt-2 text-sm text-gray-400">
+              Lihat ringkasan pesanan, status, dan detail penyewaan dalam satu
+              daftar yang lebih terorganisir.
             </p>
           </div>
 
           <button
-            onClick={ambilPesanan}
-            className="rounded-full bg-yellow-400 px-5 py-3 text-sm font-semibold text-black transition hover:bg-yellow-300"
+            type="button"
+            onClick={() => router.push("/admin")}
+            className="rounded-full border border-gray-700 px-5 py-3 text-sm font-semibold text-gray-200 transition hover:border-yellow-400 hover:text-yellow-400"
           >
-            ↻ Refresh Pesanan
+            Dashboard
           </button>
         </div>
 
-        {/* ERROR */}
         {error && (
-          <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">
+          <div className="mb-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
             {error}
           </div>
         )}
 
-        {/* LOADING */}
-        {loading ? (
-          <div className="rounded-2xl border border-gray-800 bg-gray-900 p-10 text-center">
-            <p className="text-gray-400">
-              Memuat data pesanan...
-            </p>
-          </div>
-        ) : pesanan.length === 0 ? (
-          <div className="rounded-2xl border border-gray-800 bg-gray-900 p-10 text-center">
-            <p className="text-xl font-semibold">
-              Belum ada pesanan
-            </p>
+        <section className="mb-6 rounded-2xl border border-gray-800 bg-gray-950 p-4 md:p-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex-1">
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Cari nomor pesanan / pelanggan / kamera..."
+                className="w-full rounded-xl border border-gray-700 bg-black px-4 py-2.5 text-sm text-white placeholder:text-gray-500 outline-none focus:border-yellow-400"
+              />
+            </div>
 
-            <p className="mt-2 text-gray-400">
-              Pesanan pelanggan akan muncul di halaman
-              ini.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-5">
-            {pesanan.map((item) => (
-              <div
-                key={item.id}
-                className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-900"
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+                className="rounded-xl border border-gray-700 bg-black px-4 py-2.5 text-sm text-white outline-none focus:border-yellow-400"
               >
-                {/* BAGIAN ATAS */}
-                <div className="flex flex-col gap-4 border-b border-gray-800 p-5 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <p className="text-sm text-gray-400">
-                      Nomor Pesanan
-                    </p>
+                <option value="all">Semua status</option>
+                {Object.entries(statusLabelMap).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
 
-                    <p className="text-lg font-bold text-yellow-400">
-                      {item.nomor_pesanan}
-                    </p>
-                  </div>
-
-                  <span
-                    className={`w-fit rounded-full px-4 py-2 text-xs font-semibold ${warnaStatus(
-                      item.status
-                    )}`}
-                  >
-                    {namaStatus(item.status)}
-                  </span>
-                </div>
-
-                {/* INFORMASI PESANAN */}
-                <div className="grid gap-6 p-5 md:grid-cols-2 lg:grid-cols-3">
-                  {/* PELANGGAN */}
-                  <div>
-                    <h2 className="mb-3 font-semibold text-white">
-                      Data Pelanggan
-                    </h2>
-
-                    <div className="space-y-1 text-sm text-gray-400">
-                      <p>
-                        <span className="text-gray-500">
-                          Nama:
-                        </span>{" "}
-                        {item.customer?.nama_lengkap ||
-                          "-"}
-                      </p>
-
-                      <p>
-                        <span className="text-gray-500">
-                          WhatsApp:
-                        </span>{" "}
-                        {item.customer?.whatsapp ||
-                          "-"}
-                      </p>
-
-                      <p>
-                        <span className="text-gray-500">
-                          Email:
-                        </span>{" "}
-                        {item.customer?.email || "-"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* KAMERA */}
-                  <div>
-                    <h2 className="mb-3 font-semibold text-white">
-                      Kamera
-                    </h2>
-
-                    {item.detail.map(
-                      (detail, index) => (
-                        <div
-                          key={index}
-                          className="space-y-1 text-sm text-gray-400"
-                        >
-                          <p className="font-medium text-white">
-                            {detail.camera?.brand}{" "}
-                            {detail.camera?.nama}
-                          </p>
-
-                          <p>
-                            Jumlah:{" "}
-                            {detail.jumlah} kamera
-                          </p>
-
-                          <p>
-                            Harga:{" "}
-                            {formatRupiah(
-                              detail.harga_per_hari
-                            )}
-                            /hari
-                          </p>
-                        </div>
-                      )
-                    )}
-                  </div>
-
-                  {/* WAKTU */}
-                  <div>
-                    <h2 className="mb-3 font-semibold text-white">
-                      Waktu Sewa
-                    </h2>
-
-                    <div className="space-y-1 text-sm text-gray-400">
-                      <p>
-                        <span className="text-gray-500">
-                          Ambil:
-                        </span>{" "}
-                        {formatTanggal(
-                          item.tanggal_ambil
-                        )}{" "}
-                        {item.jam_ambil}
-                      </p>
-
-                      <p>
-                        <span className="text-gray-500">
-                          Kembali:
-                        </span>{" "}
-                        {formatTanggal(
-                          item.tanggal_kembali
-                        )}{" "}
-                        {item.jam_kembali}
-                      </p>
-
-                      <p>
-                        <span className="text-gray-500">
-                          Durasi:
-                        </span>{" "}
-                        {item.jumlah_hari} hari
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* TOTAL + AKSI */}
-                <div className="flex flex-col gap-4 border-t border-gray-800 bg-gray-950/50 p-5 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <p className="text-sm text-gray-500">
-                      Total Pesanan
-                    </p>
-
-                    <p className="text-2xl font-bold text-yellow-400">
-                      {formatRupiah(
-                        item.total_harga
-                      )}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col items-start gap-3 md:items-end">
-                    <div className="text-sm text-gray-500">
-                      Dibuat:{" "}
-                      {new Date(
-                        item.created_at
-                      ).toLocaleString("id-ID")}
-                    </div>
-
-                    {bolehDibatalkan(
-                      item.status
-                    ) && (
-                      <button
-                        onClick={() =>
-                          batalkanPesanan(
-                            item.id
-                          )
-                        }
-                        disabled={
-                          membatalkanId === item.id
-                        }
-                        className="rounded-full bg-red-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {membatalkanId ===
-                        item.id
-                          ? "Membatalkan..."
-                          : "Batalkan Pesanan"}
-                      </button>
-                    )}
-
-                    {item.status === "dikonfirmasi" && (
-  <button
-    onClick={() =>
-      ubahStatusPesanan(
-        item.id,
-        "disewa"
-      )
-    }
-    disabled={mengubahStatusId === item.id}
-    className="rounded-full bg-purple-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-purple-400 disabled:cursor-not-allowed disabled:opacity-50"
-  >
-    {mengubahStatusId === item.id
-      ? "Memproses..."
-      : "Tandai Disewa"}
-  </button>
-)}
-
-{item.status === "disewa" && (
-  <button
-    onClick={() =>
-      ubahStatusPesanan(
-        item.id,
-        "selesai"
-      )
-    }
-    disabled={mengubahStatusId === item.id}
-    className="rounded-full bg-green-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-50"
-  >
-    {mengubahStatusId === item.id
-      ? "Memproses..."
-      : "Tandai Selesai"}
-  </button>
-)}
-                  </div>
-                </div>
-              </div>
-            ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("all");
+                }}
+                className="rounded-xl border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition hover:border-yellow-400 hover:text-yellow-400"
+              >
+                Reset
+              </button>
+            </div>
           </div>
-        )}
+        </section>
+
+        <section className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-950">
+          {loading ? (
+            <div className="p-10 text-center text-gray-400">
+              Memuat data pesanan...
+            </div>
+          ) : filteredPesanan.length === 0 ? (
+            <div className="p-10 text-center text-gray-400">
+              <p className="text-lg font-semibold text-white">
+                Tidak ada pesanan yang cocok
+              </p>
+              <p className="mt-2 text-sm">
+                Coba ubah pencarian atau filter status.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1100px]">
+                <thead>
+                  <tr className="border-b border-gray-800 bg-gray-900/80 text-left text-xs uppercase tracking-[0.2em] text-gray-400">
+                    <th className="px-6 py-4">Pesanan</th>
+                    <th className="px-6 py-4">Pelanggan</th>
+                    <th className="px-6 py-4">Kamera</th>
+                    <th className="px-6 py-4">Periode</th>
+                    <th className="px-6 py-4">Total</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPesanan.map((item) => (
+                    <tr
+                      key={item.id}
+                      className="border-b border-gray-900 hover:bg-gray-900/80"
+                    >
+                      <td className="px-6 py-5 align-middle">
+                        <div className="font-semibold text-white">
+                          {item.nomor_pesanan}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {new Date(item.created_at).toLocaleDateString(
+                            "id-ID",
+                            { day: "2-digit", month: "short", year: "numeric" },
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-5 align-middle">
+                        <div className="font-medium text-white">
+                          {item.customer?.nama_lengkap || "-"}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-400">
+                          {item.customer?.whatsapp || "-"}
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-5 align-middle">
+                        <div className="space-y-1 text-sm text-gray-300">
+                          {item.detail.map((detail, index) => (
+                            <div key={`${item.id}-${index}`}>
+                              {detail.camera?.brand || "-"}{" "}
+                              {detail.camera?.nama || "-"}
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-5 align-middle text-sm text-gray-300">
+                        <div>
+                          {new Date(
+                            `${item.tanggal_ambil}T00:00:00`,
+                          ).toLocaleDateString("id-ID", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })}{" "}
+                          -{" "}
+                          {new Date(
+                            `${item.tanggal_kembali}T00:00:00`,
+                          ).toLocaleDateString("id-ID", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {item.jumlah_hari} hari
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-5 align-middle font-semibold text-yellow-300">
+                        {formatRupiah(item.total_harga)}
+                      </td>
+
+                      <td className="px-6 py-5 align-middle">
+                        <StatusBadge
+                          label={statusLabelMap[item.status] || item.status}
+                          tone={statusToneMap[item.status] || "neutral"}
+                        />
+                      </td>
+
+                      <td className="px-6 py-5 align-middle">
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              router.push(`/admin/pesanan/${item.id}`)
+                            }
+                            className="rounded-full border border-yellow-400 px-4 py-2 text-xs font-semibold text-yellow-400 transition hover:bg-yellow-400 hover:text-black"
+                          >
+                            Detail
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </div>
     </main>
   );
