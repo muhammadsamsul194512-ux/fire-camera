@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { usePengaturan } from "@/hooks/usePengaturan";
 
-export default function PembayaranLegacyPage() {
+export const dynamic = "force-dynamic";
+
+function PembayaranLegacyContent() {
   const pengaturan = usePengaturan();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -77,5 +79,28 @@ export default function PembayaranLegacyPage() {
       </main>
       <Footer namaToko={pengaturan.nama_toko} whatsapp={pengaturan.whatsapp} />
     </div>
+  );
+}
+
+export default function PembayaranLegacyPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
+          <Navbar namaToko="FIRE CAMERA" />
+          <main className="flex flex-1 items-center justify-center px-6 py-20 text-center">
+            <div className="max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-8">
+              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-yellow-400" />
+              <p className="mt-4 text-lg font-semibold">
+                Mengarahkan ke halaman pembayaran…
+              </p>
+            </div>
+          </main>
+          <Footer namaToko="FIRE CAMERA" whatsapp="" />
+        </div>
+      }
+    >
+      <PembayaranLegacyContent />
+    </Suspense>
   );
 }
