@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { hasRentalOverlap, reservesInventory } from "@/lib/booking-rules";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY!;
@@ -8,6 +9,23 @@ const supabaseAdmin = createClient(
   supabaseUrl,
   supabaseSecretKey
 );
+
+function isValidDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function normalizeTime(value: string) {
+  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(value)) return null;
+  const [hours, minutes, seconds = 0] = value.split(":").map(Number);
+  if (hours > 23 || minutes > 59 || seconds > 59) return null;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function comparableDateTime(date: string, time: string) {
+  return `${date}T${time}`;
+}
 
 export async function GET(request: Request) {
   try {
@@ -34,8 +52,23 @@ export async function GET(request: Request) {
       );
     }
 
-    const waktuAmbil = `${tanggalAmbil} ${jamAmbil}`;
-    const waktuKembali = `${tanggalKembali} ${jamKembali}`;
+    const waktuAmbilNormalized = normalizeTime(jamAmbil);
+    const waktuKembaliNormalized = normalizeTime(jamKembali);
+
+    if (
+      !isValidDate(tanggalAmbil) ||
+      !isValidDate(tanggalKembali) ||
+      !waktuAmbilNormalized ||
+      !waktuKembaliNormalized
+    ) {
+      return NextResponse.json(
+        { error: "Tanggal atau waktu penyewaan tidak valid." },
+        { status: 400 },
+      );
+    }
+
+    const waktuAmbil = comparableDateTime(tanggalAmbil, waktuAmbilNormalized);
+    const waktuKembali = comparableDateTime(tanggalKembali, waktuKembaliNormalized);
 
     if (waktuKembali <= waktuAmbil) {
       return NextResponse.json(
@@ -83,7 +116,8 @@ export async function GET(request: Request) {
             jam_ambil,
             tanggal_kembali,
             jam_kembali,
-            status
+            status,
+            payment_expires_at
           )
         `
         )
@@ -110,6 +144,7 @@ export async function GET(request: Request) {
     }
 
     let stokTerpakai = 0;
+    const now = Date.now();
 
     for (const detail of orderDetails || []) {
       const order = Array.isArray(detail.orders)
@@ -118,15 +153,20 @@ export async function GET(request: Request) {
 
       if (!order) continue;
 
-      const mulaiOrder =
-        `${order.tanggal_ambil} ${order.jam_ambil}`;
+      if (!reservesInventory(order.status, order.payment_expires_at, new Date(now))) {
+        continue;
+      }
 
-      const selesaiOrder =
-        `${order.tanggal_kembali} ${order.jam_kembali}`;
-
-      const bentrok =
-        mulaiOrder < waktuKembali &&
-        selesaiOrder > waktuAmbil;
+      const bentrok = hasRentalOverlap(
+        order.tanggal_ambil,
+        order.jam_ambil,
+        order.tanggal_kembali,
+        order.jam_kembali,
+        tanggalAmbil,
+        waktuAmbilNormalized,
+        tanggalKembali,
+        waktuKembaliNormalized,
+      );
 
       if (bentrok) {
         stokTerpakai += Number(detail.jumlah) || 0;

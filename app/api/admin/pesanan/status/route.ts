@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { cekAdmin } from "@/lib/admin";
+import { getStatusLabel } from "@/lib/status";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -95,7 +96,7 @@ export async function PATCH(request: NextRequest) {
     if (["dibatalkan", "ditolak", "kedaluwarsa", "selesai"].includes(pesanan.status)) {
       return NextResponse.json(
         {
-          error: `Pesanan sudah berstatus ${pesanan.status} dan tidak dapat diubah lagi.`,
+          error: `Pesanan sudah berstatus ${getStatusLabel(pesanan.status)} dan tidak dapat diubah lagi.`,
         },
         { status: 400 }
       );

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/admin/StatusBadge";
 import { supabase } from "@/lib/supabase";
+import { getStatusLabel } from "@/lib/status";
 
 type Pesanan = {
   id: number;
@@ -32,30 +33,7 @@ type Pesanan = {
   }> | null;
 };
 
-const statusLabelMap: Record<string, string> = {
-  menunggu_pembayaran: "Menunggu Pembayaran",
-  menunggu_verifikasi: "Menunggu Verifikasi",
-  dikonfirmasi: "Dikonfirmasi",
-  disewa: "Disewa",
-  selesai: "Selesai",
-  dibatalkan: "Cancelled",
-  ditolak: "Ditolak",
-  kedaluwarsa: "Expired",
-};
-
-const statusToneMap: Record<
-  string,
-  "neutral" | "warning" | "success" | "danger" | "info" | "purple"
-> = {
-  menunggu_pembayaran: "warning",
-  menunggu_verifikasi: "warning",
-  dikonfirmasi: "info",
-  disewa: "purple",
-  selesai: "success",
-  dibatalkan: "danger",
-  ditolak: "danger",
-  kedaluwarsa: "neutral",
-};
+const orderStatuses = ["menunggu_pembayaran", "menunggu_verifikasi", "dikonfirmasi", "disewa", "selesai", "dibatalkan", "ditolak", "kedaluwarsa"];
 
 function formatRupiah(value: number) {
   return new Intl.NumberFormat("id-ID", {
@@ -183,9 +161,9 @@ export default function AdminPesananPage() {
                 className="rounded-xl border border-gray-700 bg-black px-4 py-2.5 text-sm text-white outline-none focus:border-yellow-400"
               >
                 <option value="all">Semua status</option>
-                {Object.entries(statusLabelMap).map(([key, label]) => (
-                  <option key={key} value={key}>
-                    {label}
+                {orderStatuses.map((status) => (
+                  <option key={status} value={status}>
+                    {getStatusLabel(status)}
                   </option>
                 ))}
               </select>
@@ -311,10 +289,7 @@ export default function AdminPesananPage() {
                         </td>
 
                         <td className="px-6 py-5 align-middle">
-                          <StatusBadge
-                            label={statusLabelMap[item.status] || item.status}
-                            tone={statusToneMap[item.status] || "neutral"}
-                          />
+                          <StatusBadge status={item.status} />
                         </td>
 
                         <td className="px-6 py-5 align-middle text-right">

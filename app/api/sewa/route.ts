@@ -5,11 +5,25 @@ import {
   buildPaymentRoute,
   createPaymentAccessToken,
 } from "@/lib/payment-access";
+import { isValidRequestedQuantity } from "@/lib/booking-rules";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY!;
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseSecretKey);
+
+function isValidDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function normalizeTime(value: unknown): string | null {
+  if (typeof value !== "string" || !/^\d{2}:\d{2}(:\d{2})?$/.test(value)) return null;
+  const [hours, minutes, seconds = 0] = value.split(":").map(Number);
+  if (hours > 23 || minutes > 59 || seconds > 59) return null;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
 
 export async function POST(request: Request) {
   try {
@@ -19,7 +33,6 @@ export async function POST(request: Request) {
       nama,
       whatsapp,
       email,
-      kamera,
       kameraId,
       tanggalAmbil,
       jamAmbil,
@@ -52,11 +65,28 @@ export async function POST(request: Request) {
 
     const jumlahKamera = Number(jumlah);
 
-    if (!Number.isInteger(jumlahKamera) || jumlahKamera < 1) {
+    if (!isValidRequestedQuantity(jumlah)) {
       return NextResponse.json(
         {
           error: "Jumlah kamera minimal 1.",
         },
+        { status: 400 },
+      );
+    }
+
+    const waktuAmbil = normalizeTime(jamAmbil);
+    const waktuKembali = normalizeTime(jamKembali);
+
+    if (
+      !isValidDate(tanggalAmbil) ||
+      !isValidDate(tanggalKembali) ||
+      !waktuAmbil ||
+      !waktuKembali ||
+      tanggalKembali <= tanggalAmbil ||
+      `${tanggalKembali}T${waktuKembali}` <= `${tanggalAmbil}T${waktuAmbil}`
+    ) {
+      return NextResponse.json(
+        { error: "Tanggal atau waktu penyewaan tidak valid." },
         { status: 400 },
       );
     }
@@ -108,13 +138,35 @@ export async function POST(request: Request) {
     });
 
     if (error) {
-      console.error("Gagal membuat pesanan:", error);
+      const diagnosticError = error as typeof error & {
+        status?: number;
+        statusCode?: string;
+      };
+      console.error("Gagal membuat pesanan", {
+        operation: "buat_pesanan",
+        message: error.message,
+        code: error.code,
+        status: diagnosticError.status,
+        statusCode: diagnosticError.statusCode,
+        details: error.details,
+        hint: error.hint,
+      });
+
+      if (error.message?.includes("Kamera tidak tersedia untuk rentang tanggal")) {
+        return NextResponse.json(
+          {
+            error: "Stok kamera tidak cukup untuk jumlah dan periode yang dipilih.",
+            code: "INSUFFICIENT_STOCK",
+          },
+          { status: 409 },
+        );
+      }
 
       return NextResponse.json(
         {
-          error: error.message || "Gagal membuat pesanan.",
+          error: "Gagal membuat pesanan.",
         },
-        { status: 400 },
+        { status: 500 },
       );
     }
 

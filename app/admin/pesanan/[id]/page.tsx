@@ -36,31 +36,6 @@ type PesananDetail = {
   }>;
 };
 
-const statusLabelMap: Record<string, string> = {
-  menunggu_pembayaran: "Menunggu Pembayaran",
-  menunggu_verifikasi: "Menunggu Verifikasi",
-  dikonfirmasi: "Dikonfirmasi",
-  disewa: "Disewa",
-  selesai: "Selesai",
-  dibatalkan: "Cancelled",
-  ditolak: "Ditolak",
-  kedaluwarsa: "Expired",
-};
-
-const statusToneMap: Record<
-  string,
-  "neutral" | "warning" | "success" | "danger" | "info" | "purple"
-> = {
-  menunggu_pembayaran: "warning",
-  menunggu_verifikasi: "warning",
-  dikonfirmasi: "info",
-  disewa: "purple",
-  selesai: "success",
-  dibatalkan: "danger",
-  ditolak: "danger",
-  kedaluwarsa: "neutral",
-};
-
 function formatRupiah(value: number) {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -249,10 +224,7 @@ export default function AdminPesananDetailPage() {
           >
             ← Kembali ke daftar
           </button>
-          <StatusBadge
-            label={statusLabelMap[order.status] || order.status}
-            tone={statusToneMap[order.status] || "neutral"}
-          />
+          <StatusBadge status={order.status} />
         </div>
 
         <section className="rounded-2xl border border-gray-800 bg-gray-950 p-6 md:p-8">

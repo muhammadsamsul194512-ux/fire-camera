@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { cekAdmin } from "@/lib/admin";
+import { getStatusLabel } from "@/lib/status";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY!;
@@ -101,7 +102,7 @@ export async function PATCH(request: Request) {
     ) {
       return NextResponse.json(
         {
-          error: `Pesanan sudah berstatus ${order.status}.`,
+          error: `Pesanan sudah berstatus ${getStatusLabel(order.status)}.`,
         },
         { status: 400 }
       );
