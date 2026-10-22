@@ -167,9 +167,13 @@ function SewaContent() {
   );
 
   // Clamp jumlah at render time (derived — no effect needed)
+  const stokMaksimalPeriode =
+    kameraTerpilih && stokStatus.status === "available"
+      ? Math.min(kameraTerpilih.stok, stokStatus.stok ?? kameraTerpilih.stok)
+      : kameraTerpilih?.stok;
   const jumlahEfektif =
     kameraTerpilih && kameraTerpilih.stok > 0
-      ? Math.min(jumlah, kameraTerpilih.stok)
+      ? Math.min(jumlah, stokMaksimalPeriode ?? kameraTerpilih.stok)
       : jumlah;
 
   const jumlahHari = hitungJumlahHari(tanggalAmbil, tanggalKembali);
@@ -182,7 +186,8 @@ function SewaContent() {
     !!tanggalKembali &&
     datesValid &&
     jumlahEfektif >= 1 &&
-    stokStatus.status === "available";
+    stokStatus.status === "available" &&
+    jumlahEfektif <= (stokStatus.stok ?? 0);
 
   useEffect(() => {
     let cancelled = false;
@@ -475,12 +480,12 @@ function SewaContent() {
                     <input
                       type="number"
                       min={1}
-                      max={kameraTerpilih.stok}
+                      max={stokMaksimalPeriode}
                       value={jumlahEfektif}
                       onChange={(e) =>
                         setJumlah(
                           Math.min(
-                            kameraTerpilih.stok,
+                            stokMaksimalPeriode ?? kameraTerpilih.stok,
                             Math.max(1, Number(e.target.value)),
                           ),
                         )
@@ -488,7 +493,10 @@ function SewaContent() {
                       className={`${inputClass} max-w-[120px]`}
                     />
                     <p className="mt-1.5 text-xs text-zinc-500">
-                      Maksimal {kameraTerpilih.stok} unit.
+                      Maksimal {stokMaksimalPeriode ?? kameraTerpilih.stok} unit
+                      {stokStatus.status === "available"
+                        ? " untuk periode ini."
+                        : " total."}
                     </p>
                   </div>
                 )}

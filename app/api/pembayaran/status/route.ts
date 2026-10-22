@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
+import { PAYMENT_ACCESS_COOKIE, isValidPaymentRouteId, verifyPaymentAccessToken, verifyPaymentAccessTokenForOrderNumber } from "@/lib/payment-access";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY!;
@@ -20,6 +22,15 @@ export async function GET(request: Request) {
         },
         { status: 400 },
       );
+    }
+
+    const cookieStore = await cookies();
+    const paymentToken = cookieStore.get(PAYMENT_ACCESS_COOKIE)?.value;
+    const hasValidIdentity = orderIdParam
+      ? isValidPaymentRouteId(orderIdParam) && verifyPaymentAccessToken(paymentToken, Number(orderIdParam))
+      : verifyPaymentAccessTokenForOrderNumber(paymentToken, nomorPesanan);
+    if (!hasValidIdentity) {
+      return NextResponse.json({ error: "Akses pembayaran tidak valid atau sudah berakhir." }, { status: 401 });
     }
 
     const orderId = orderIdParam ? Number(orderIdParam) : null;

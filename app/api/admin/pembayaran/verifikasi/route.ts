@@ -2,502 +2,114 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { cekAdmin } from "@/lib/admin";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY!;
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SECRET_KEY!,
+);
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseSecretKey);
+async function getAuthorizedAdmin(request: Request) {
+  const authorization = request.headers.get("authorization");
+  if (!authorization?.startsWith("Bearer ")) return { error: "Kamu harus login sebagai admin.", status: 401 as const };
+  const { data: { user }, error } = await supabaseAdmin.auth.getUser(authorization.slice(7));
+  if (error || !user) return { error: "Session login tidak valid.", status: 401 as const };
+  if (!(await cekAdmin(user.id))) return { error: "Akses ditolak. Kamu bukan admin.", status: 403 as const };
+  return { user };
+}
 
-// ======================================================
-// GET
-// Mengambil daftar pembayaran untuk admin
-// ======================================================
 export async function GET(request: Request) {
   try {
-    // 1. Ambil access token
-    const authorization = request.headers.get("authorization");
+    const auth = await getAuthorizedAdmin(request);
+    if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-    if (!authorization?.startsWith("Bearer ")) {
-      return NextResponse.json(
-        {
-          error: "Kamu harus login sebagai admin.",
-        },
-        {
-          status: 401,
-        },
-      );
-    }
-
-    const accessToken = authorization.replace("Bearer ", "");
-
-    // 2. Verifikasi token
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseAdmin.auth.getUser(accessToken);
-
-    if (userError || !user) {
-      return NextResponse.json(
-        {
-          error: "Session login tidak valid.",
-        },
-        {
-          status: 401,
-        },
-      );
-    }
-
-    // 3. Cek admin
-    const isAdmin = await cekAdmin(user.id);
-
-    if (!isAdmin) {
-      return NextResponse.json(
-        {
-          error: "Akses ditolak. Kamu bukan admin.",
-        },
-        {
-          status: 403,
-        },
-      );
-    }
-
-    // 4. Ambil data pembayaran
-    const { data, error } = await supabaseAdmin
-      .from("payment")
-      .select(
-        `
-        id,
-        order_id,
-        metode,
-        bank,
-        nomor_rekening,
-        nama_pemilik_rekening,
-        bukti_pembayaran_url,
-        status,
-        catatan_admin,
-        uploaded_at,
-        verified_at,
-        created_at,
-        order:order_id (
-          id,
-          nomor_pesanan,
-          tanggal_ambil,
-          jam_ambil,
-          tanggal_kembali,
-          jam_kembali,
-          jumlah_hari,
-          total_harga,
-          status,
-          payment_expires_at,
-          expired_at,
-          created_at,
-          customer:customer_id (
-            nama_lengkap,
-            whatsapp,
-            email
-          ),
-          detail:order_detail (
-            jumlah,
-            harga_per_hari,
-            subtotal,
-            camera:camera_id (
-              nama,
-              brand
-            )
-          )
-        )
-      `,
+    const filter = new URL(request.url).searchParams.get("filter") ?? "all";
+    let query = supabaseAdmin.from("payment").select(`
+      id, order_id, metode, bank, bukti_pembayaran_url, status, catatan_admin,
+      uploaded_at, verified_at, created_at,
+        order:order_id!inner (
+        id, nomor_pesanan, tanggal_ambil, tanggal_kembali, jumlah_hari, total_harga,
+        status, payment_expires_at,
+        customer:customer_id (nama_lengkap, whatsapp),
+        detail:order_detail (jumlah, camera:camera_id (nama, brand))
       )
-      .neq("status", "kedaluwarsa")
-      .order("created_at", {
-        ascending: false,
-      });
+    `).order("uploaded_at", { ascending: false, nullsFirst: false });
 
+    if (filter === "needs_verification") {
+      query = query.eq("status", "menunggu_verifikasi")
+        .eq("order.status", "menunggu_verifikasi")
+        .not("bukti_pembayaran_url", "is", null);
+    } else if (filter !== "all") {
+      return NextResponse.json({ error: "Filter pembayaran tidak valid." }, { status: 400 });
+    }
+
+    const { data, error } = await query;
     if (error) {
       console.error("Gagal mengambil data pembayaran:", error);
-
-      return NextResponse.json(
-        {
-          error: "Gagal mengambil data pembayaran.",
-        },
-        {
-          status: 500,
-        },
-      );
+      return NextResponse.json({ error: "Gagal mengambil data pembayaran." }, { status: 500 });
     }
 
-    const dataDenganUrl = await Promise.all(
-      (data || []).map(async (payment) => {
-        let buktiPembayaranUrl = payment.bukti_pembayaran_url;
+    const payments = await Promise.all((data ?? []).map(async (payment) => {
+      if (!payment.bukti_pembayaran_url) return payment;
+      const { data: signed, error: signedError } = await supabaseAdmin.storage
+        .from("bukti-pembayaran")
+        .createSignedUrl(payment.bukti_pembayaran_url, 600);
+      if (signedError) {
+        console.error("Gagal membuat signed URL bukti pembayaran:", signedError);
+        return { ...payment, bukti_pembayaran_url: null, proof_error: "Bukti tidak dapat diakses saat ini." };
+      }
+      return { ...payment, bukti_pembayaran_url: signed.signedUrl };
+    }));
 
-        if (payment.bukti_pembayaran_url) {
-          const { data: signedUrlData, error: signedUrlError } =
-            await supabaseAdmin.storage
-              .from("bukti-pembayaran")
-              .createSignedUrl(payment.bukti_pembayaran_url, 60 * 10);
-
-          if (signedUrlError) {
-            console.error(
-              "Gagal membuat signed URL bukti pembayaran:",
-              signedUrlError,
-            );
-
-            buktiPembayaranUrl = null;
-          } else {
-            buktiPembayaranUrl = signedUrlData.signedUrl;
-          }
-        }
-
-        return {
-          ...payment,
-          bukti_pembayaran_url: buktiPembayaranUrl,
-        };
-      }),
-    );
-
-    return NextResponse.json({
-      success: true,
-      data: dataDenganUrl,
-    });
+    return NextResponse.json({ success: true, count: payments.length, data: payments });
   } catch (error) {
     console.error("Error API mengambil pembayaran:", error);
-
-    return NextResponse.json(
-      {
-        error: "Terjadi kesalahan pada server.",
-      },
-      {
-        status: 500,
-      },
-    );
+    return NextResponse.json({ error: "Terjadi kesalahan pada server." }, { status: 500 });
   }
 }
 
-// ======================================================
-// PATCH
-// Mengubah status pembayaran
-//
-// action:
-// - konfirmasi
-// - upload_ulang
-// - tolak
-// ======================================================
 export async function PATCH(request: Request) {
   try {
-    // 1. Ambil access token
-    const authorization = request.headers.get("authorization");
+    const auth = await getAuthorizedAdmin(request);
+    if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-    if (!authorization?.startsWith("Bearer ")) {
-      return NextResponse.json(
-        {
-          error: "Kamu harus login sebagai admin.",
-        },
-        {
-          status: 401,
-        },
-      );
-    }
-
-    const accessToken = authorization.replace("Bearer ", "");
-
-    // 2. Verifikasi token
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseAdmin.auth.getUser(accessToken);
-
-    if (userError || !user) {
-      return NextResponse.json(
-        {
-          error: "Session login tidak valid.",
-        },
-        {
-          status: 401,
-        },
-      );
-    }
-
-    // 3. Cek admin
-    const isAdmin = await cekAdmin(user.id);
-
-    if (!isAdmin) {
-      return NextResponse.json(
-        {
-          error: "Akses ditolak. Kamu bukan admin.",
-        },
-        {
-          status: 403,
-        },
-      );
-    }
-
-    // 4. Ambil data dari request
     const body = await request.json();
-
     const paymentId = Number(body.paymentId);
-    const action = body.action;
-    const catatanAdmin =
-      typeof body.catatanAdmin === "string" ? body.catatanAdmin.trim() : "";
+    const actions: Record<string, string> = {
+      konfirmasi: "approve",
+      tolak: "reject",
+      upload_ulang: "request_reupload",
+    };
+    const action = actions[body.action];
+    const note = typeof body.catatanAdmin === "string" ? body.catatanAdmin.trim() : "";
 
-    if (!paymentId) {
+    if (!Number.isSafeInteger(paymentId) || paymentId <= 0 || !action) {
+      return NextResponse.json({ error: "Data tindakan pembayaran tidak valid." }, { status: 400 });
+    }
+    if (action !== "approve" && (note.length < 8 || note.length > 500)) {
+      return NextResponse.json({ error: "Alasan wajib diisi (8–500 karakter)." }, { status: 400 });
+    }
+
+    const { error } = await supabaseAdmin.rpc("review_payment", {
+      p_payment_id: paymentId,
+      p_action: action,
+      p_note: action === "approve" ? null : note,
+    });
+    if (error) {
+      console.error("Gagal memproses keputusan pembayaran:", error);
+      const rejected = /tidak dapat|sudah|kedaluwarsa|tidak ditemukan|tidak menunggu/i.test(error.message);
       return NextResponse.json(
-        {
-          error: "ID pembayaran tidak ditemukan.",
-        },
-        {
-          status: 400,
-        },
+        { error: rejected ? error.message : "Gagal menyimpan keputusan pembayaran." },
+        { status: rejected ? 409 : 500 },
       );
     }
 
-    // 5. Validasi action
-    const actionDiizinkan = ["konfirmasi", "upload_ulang", "tolak"];
-
-    if (!actionDiizinkan.includes(action)) {
-      return NextResponse.json(
-        {
-          error: "Tindakan pembayaran tidak valid.",
-        },
-        {
-          status: 400,
-        },
-      );
-    }
-
-    // 6. Cari pembayaran
-    const { data: payment, error: paymentFindError } = await supabaseAdmin
-      .from("payment")
-      .select("id, order_id, status, expires_at")
-      .eq("id", paymentId)
-      .single();
-
-    if (paymentFindError || !payment) {
-      return NextResponse.json(
-        {
-          error: "Data pembayaran tidak ditemukan.",
-        },
-        {
-          status: 404,
-        },
-      );
-    }
-
-    const { data: order, error: orderError } = await supabaseAdmin
-      .from("orders")
-      .select("id, status, payment_expires_at")
-      .eq("id", payment.order_id)
-      .single();
-
-    if (orderError || !order) {
-      return NextResponse.json(
-        {
-          error: "Pesanan tidak ditemukan.",
-        },
-        { status: 404 },
-      );
-    }
-
-    if (order.status === "kedaluwarsa") {
-      return NextResponse.json(
-        {
-          error:
-            "Reservasi sudah kedaluwarsa dan tidak dapat dikonfirmasi lagi.",
-        },
-        { status: 400 },
-      );
-    }
-
-    // ==================================================
-    // AKSI 1: KONFIRMASI
-    // ==================================================
-    if (action === "konfirmasi") {
-      if (payment.status === "dikonfirmasi") {
-        return NextResponse.json(
-          {
-            error: "Pembayaran ini sudah dikonfirmasi.",
-          },
-          {
-            status: 400,
-          },
-        );
-      }
-
-      if (
-        order.payment_expires_at &&
-        new Date(order.payment_expires_at).getTime() <= Date.now()
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              "Batas waktu pembayaran sudah habis. Pesanan ini tidak dapat dikonfirmasi lagi.",
-          },
-          { status: 400 },
-        );
-      }
-
-      const { error: paymentUpdateError } = await supabaseAdmin
-        .from("payment")
-        .update({
-          status: "dikonfirmasi",
-          verified_at: new Date().toISOString(),
-          catatan_admin: null,
-        })
-        .eq("id", paymentId)
-        .eq("status", "menunggu_verifikasi");
-
-      if (paymentUpdateError) {
-        console.error("Gagal mengubah status pembayaran:", paymentUpdateError);
-
-        return NextResponse.json(
-          {
-            error: "Gagal mengonfirmasi pembayaran.",
-          },
-          {
-            status: 500,
-          },
-        );
-      }
-
-      const { error: orderUpdateError } = await supabaseAdmin
-        .from("orders")
-        .update({
-          status: "dikonfirmasi",
-        })
-        .eq("id", payment.order_id);
-
-      if (orderUpdateError) {
-        console.error("Gagal mengubah status pesanan:", orderUpdateError);
-
-        return NextResponse.json(
-          {
-            error:
-              "Pembayaran berhasil dikonfirmasi, tetapi status pesanan gagal diperbarui.",
-          },
-          {
-            status: 500,
-          },
-        );
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: "Pembayaran berhasil dikonfirmasi.",
-      });
-    }
-
-    // ==================================================
-    // AKSI 2: PERLU UPLOAD ULANG
-    // ==================================================
-    if (action === "upload_ulang") {
-      if (!catatanAdmin) {
-        return NextResponse.json(
-          {
-            error: "Catatan admin wajib diisi untuk meminta upload ulang.",
-          },
-          {
-            status: 400,
-          },
-        );
-      }
-
-      const { error: paymentUpdateError } = await supabaseAdmin
-        .from("payment")
-        .update({
-          status: "perlu_upload_ulang",
-          catatan_admin: catatanAdmin,
-          verified_at: null,
-        })
-        .eq("id", paymentId);
-
-      if (paymentUpdateError) {
-        console.error("Gagal meminta upload ulang:", paymentUpdateError);
-
-        return NextResponse.json(
-          {
-            error: "Gagal meminta pelanggan upload ulang.",
-          },
-          {
-            status: 500,
-          },
-        );
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: "Pelanggan diminta mengupload ulang bukti pembayaran.",
-      });
-    }
-
-    // ==================================================
-    // AKSI 3: TOLAK
-    // ==================================================
-    if (action === "tolak") {
-      const { error: paymentUpdateError } = await supabaseAdmin
-        .from("payment")
-        .update({
-          status: "ditolak",
-          catatan_admin: catatanAdmin || null,
-          verified_at: new Date().toISOString(),
-        })
-        .eq("id", paymentId);
-
-      if (paymentUpdateError) {
-        console.error("Gagal menolak pembayaran:", paymentUpdateError);
-
-        return NextResponse.json(
-          {
-            error: "Gagal menolak pembayaran.",
-          },
-          {
-            status: 500,
-          },
-        );
-      }
-
-      const { error: orderUpdateError } = await supabaseAdmin
-        .from("orders")
-        .update({
-          status: "ditolak",
-        })
-        .eq("id", payment.order_id);
-
-      if (orderUpdateError) {
-        console.error("Gagal mengubah status pesanan:", orderUpdateError);
-
-        return NextResponse.json(
-          {
-            error:
-              "Pembayaran ditolak, tetapi status pesanan gagal diperbarui.",
-          },
-          {
-            status: 500,
-          },
-        );
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: "Pembayaran berhasil ditolak.",
-      });
-    }
-
-    return NextResponse.json(
-      {
-        error: "Tindakan tidak dapat diproses.",
-      },
-      {
-        status: 400,
-      },
-    );
+    const messages: Record<string, string> = {
+      approve: "Pembayaran berhasil dikonfirmasi.",
+      reject: "Pembayaran berhasil ditolak.",
+      request_reupload: "Pelanggan diminta mengupload ulang bukti pembayaran.",
+    };
+    return NextResponse.json({ success: true, message: messages[action] });
   } catch (error) {
     console.error("Error API verifikasi pembayaran:", error);
-
-    return NextResponse.json(
-      {
-        error: "Terjadi kesalahan pada server.",
-      },
-      {
-        status: 500,
-      },
-    );
+    return NextResponse.json({ error: "Terjadi kesalahan pada server." }, { status: 500 });
   }
 }

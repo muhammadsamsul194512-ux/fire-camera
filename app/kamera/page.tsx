@@ -88,9 +88,12 @@ export default function KameraPage() {
           });
           const res = await fetch(`/api/kamera/stok?${params}`);
           const json = await res.json();
+          if (!res.ok) {
+            throw new Error(json.error || `Gagal mengecek stok kamera ${cam.id}.`);
+          }
           return {
             id: cam.id,
-            stok: res.ok ? Number(json.stokTersedia) : cam.stok,
+            stok: Number(json.stokTersedia),
           };
         }),
       );
@@ -154,10 +157,12 @@ export default function KameraPage() {
   }
 
   // Split cameras into available and unavailable when dates are chosen
-  const camerasAvailable = datesSelected
+  const camerasAvailable = datesSelected && stokState.status === "done"
     ? cameras.filter((c) => getStok(c) > 0)
-    : cameras;
-  const camerasUnavailable = datesSelected
+    : datesSelected
+      ? []
+      : cameras;
+  const camerasUnavailable = datesSelected && stokState.status === "done"
     ? cameras.filter((c) => getStok(c) <= 0)
     : [];
 
@@ -386,12 +391,12 @@ export default function KameraPage() {
                                 </span>
                               ) : (
                                 <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-400">
-                                  ✓ Tersedia
+                                  ✓ {stok} unit tersedia
                                 </span>
                               )
                             ) : (
                               <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs font-semibold text-zinc-400">
-                                {camera.stok} unit
+                                Stok total {camera.stok} unit
                               </span>
                             )}
                           </div>

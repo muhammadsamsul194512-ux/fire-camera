@@ -410,10 +410,7 @@ export default function KameraDetailPage() {
                         <div className="flex items-center gap-2 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3">
                           <span className="text-green-400 font-bold">✓</span>
                           <span className="text-sm font-semibold text-green-400">
-                            Tersedia
-                            {stokStatus.stok <= 2
-                              ? ` — tersisa ${stokStatus.stok} unit`
-                              : ""}
+                            Tersedia — tersisa {stokStatus.stok} unit
                           </span>
                         </div>
                       )}
