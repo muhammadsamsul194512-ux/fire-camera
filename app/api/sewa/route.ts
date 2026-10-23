@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
-  PAYMENT_ACCESS_COOKIE,
+  PAYMENT_ACCESS_MAX_AGE_SECONDS,
   buildPaymentRoute,
   createPaymentAccessToken,
+  paymentAccessCookieName,
 } from "@/lib/payment-access";
 import { isValidRequestedQuantity } from "@/lib/booking-rules";
 
@@ -207,24 +208,20 @@ export async function POST(request: Request) {
 
     if (orderId && createdOrder?.payment_expires_at) {
       response.cookies.set({
-        name: PAYMENT_ACCESS_COOKIE,
+        name: paymentAccessCookieName(orderId)!,
         value: createPaymentAccessToken({
           orderId,
           nomorPesanan: hasil.nomor_pesanan,
           whatsapp: String(whatsapp || "").trim(),
-          expiresAt: createdOrder.payment_expires_at,
+          // The access token protects order status/re-upload access and must
+          // outlive the initial payment window. The database enforces deadlines.
+          expiresAt: new Date(Date.now() + PAYMENT_ACCESS_MAX_AGE_SECONDS * 1000),
         }),
         httpOnly: true,
         sameSite: "lax",
         secure: process.env.NODE_ENV === "production",
         path: "/",
-        maxAge: Math.max(
-          60,
-          Math.ceil(
-            (new Date(createdOrder.payment_expires_at).getTime() - Date.now()) /
-              1000,
-          ),
-        ),
+        maxAge: PAYMENT_ACCESS_MAX_AGE_SECONDS,
       });
     }
 

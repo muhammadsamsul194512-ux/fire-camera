@@ -3,9 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
 import {
-  PAYMENT_ACCESS_COOKIE,
   isValidPaymentRouteId,
-  verifyPaymentAccessToken,
+  verifyPaymentAccessFromCookies,
 } from "@/lib/payment-access";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -74,8 +73,7 @@ export async function POST(request: Request) {
     operation = "authorize_payment_access";
     const orderId = Number(orderIdValue);
     const cookieStore = await cookies();
-    const paymentToken = cookieStore.get(PAYMENT_ACCESS_COOKIE)?.value;
-    if (!paymentToken || !verifyPaymentAccessToken(paymentToken, orderId)) {
+    if (!verifyPaymentAccessFromCookies(cookieStore.getAll(), orderId)) {
       return NextResponse.json({ error: "Akses pembayaran tidak valid atau sudah berakhir." }, { status: 401 });
     }
 
@@ -115,19 +113,6 @@ export async function POST(request: Request) {
         {
           error:
             "Reservasi ini sudah tidak aktif. Silakan cek kembali ketersediaan dan buat pesanan baru.",
-        },
-        { status: 400 },
-      );
-    }
-
-    if (
-      order.payment_expires_at &&
-      new Date(order.payment_expires_at).getTime() <= Date.now()
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Batas waktu pembayaran sudah habis. Reservasi ini telah kedaluwarsa.",
         },
         { status: 400 },
       );

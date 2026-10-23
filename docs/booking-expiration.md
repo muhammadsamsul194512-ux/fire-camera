@@ -1,51 +1,33 @@
 # Booking concurrency and payment expiration
 
-## Payment timeout
+## Payment and replacement proof deadlines
 
-The project uses a 30-minute payment window for unpaid bookings. The deadline is stored in the `orders.payment_expires_at` column and mirrored to `payment.expires_at` when the payment record is created.
+An unpaid booking has a 30-minute deadline in `orders.payment_expires_at`, mirrored to `payment.expires_at`. Only an order/payment pair still in `menunggu_pembayaran`, without a submitted proof, expires at that deadline.
 
-The core rules are:
+After proof storage succeeds, `submit_payment_proof(...)` atomically records its reference and changes both records to `menunggu_verifikasi`. The initial deadline remains historical and is not used while an admin reviews a submitted proof.
 
-- unpaid bookings only expire while they remain in `menunggu_pembayaran` or `menunggu_verifikasi`
-- once expiry wins, the order status becomes `kedaluwarsa`
-- the payment status is also set to `kedaluwarsa`
-- an expired booking no longer blocks camera inventory
-- confirmations after expiry are rejected by the API layer
+When an admin requests a replacement proof, `payment.reupload_expires_at` is set to 30 minutes from the request. The customer must submit while payment is `perlu_upload_ulang`; the successful submission clears that deadline and returns payment to `menunggu_verifikasi`. An overdue replacement request expires the order and payment. An explicit rejection remains terminal and does not permit upload.
 
-## Database safeguards
+The customer access token lasts 90 days so payment status and an admin-requested replacement remain accessible after the initial 30-minute window. The database functions independently validate every applicable deadline and status.
 
-The `public.buat_pesanan(...)` function re-checks camera availability and locks the camera row before allocating inventory. This prevents two requests from each thinking the last unit is still available.
+## Inventory and database safeguards
 
-The `public.expire_unpaid_bookings()` function marks expired unpaid bookings idempotently and safely updates both the order and payment records. It is safe to run repeatedly.
+Orders in `menunggu_pembayaran` reserve inventory until their payment deadline. Orders in `menunggu_verifikasi` reserve inventory while a submitted proof is reviewed. A replacement request stops reserving inventory once its separate deadline passes. Confirmed and rented orders continue to reserve inventory according to their rental dates.
+
+`public.buat_pesanan(...)` locks the camera row and checks the same reservation policy before allocating stock. `public.expire_unpaid_bookings()` safely expires only unpaid orders or overdue replacement requests, and is safe to run repeatedly. Submitted proofs waiting for review are not expired by the original deadline.
+
+Apply the versioned Supabase migrations to the target database to install the separate replacement deadline and updated functions. These repository changes do not apply migrations to production.
 
 ## Scheduled automation
 
-### Preferred on Supabase
+Migration `20261012_supabase_cron_expire_unpaid_bookings.sql` registers or reactivates the existing `pg_cron` job every five minutes. The migration added in October 2026 replaces the function body without changing its signature, so the existing job continues to call the corrected policy.
 
-If your Supabase project has `pg_cron` enabled, run the following once in the SQL editor:
-
-```sql
-SELECT cron.schedule(
-  'expire-unpaid-bookings',
-  '*/5 * * * *',
-  $$SELECT public.expire_unpaid_bookings();$$
-);
-```
-
-If `pg_cron` is unavailable or disabled in your plan, use the internal API endpoint as the compatible fallback:
+If `pg_cron` is unavailable or disabled, use the protected API endpoint as a fallback:
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" https://your-app.example.com/api/cron/expire-bookings
 ```
 
-Set `CRON_SECRET` in the deployment environment and keep it out of client code. The route is protected by a bearer token and only exposes the server-side RPC.
+## Schema inspection
 
-## Verification
-
-To confirm the scheduler is working:
-
-1. create a booking that remains unpaid
-2. wait beyond `payment_expires_at`
-3. query the order and payment records
-4. validate that `orders.status` is `kedaluwarsa`
-5. check that the camera inventory is immediately available again
+The repository migrations define the `orders.payment_expires_at`, `orders.expired_at`, and `payment.expires_at` fields but did not include a base schema or status constraint definition. The read-only Supabase inspection confirmed those fields and observed `menunggu_verifikasi` payment records; PostgREST does not expose `information_schema`, so it could not report the live constraints or Cron catalog. No production migration was applied.

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-import { PAYMENT_ACCESS_COOKIE, isValidPaymentRouteId, verifyPaymentAccessToken, verifyPaymentAccessTokenForOrderNumber } from "@/lib/payment-access";
+import { isValidPaymentRouteId, verifyPaymentAccessFromCookies, verifyPaymentAccessForOrderNumberFromCookies } from "@/lib/payment-access";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY!;
@@ -25,10 +25,10 @@ export async function GET(request: Request) {
     }
 
     const cookieStore = await cookies();
-    const paymentToken = cookieStore.get(PAYMENT_ACCESS_COOKIE)?.value;
+    const paymentCookies = cookieStore.getAll();
     const hasValidIdentity = orderIdParam
-      ? isValidPaymentRouteId(orderIdParam) && verifyPaymentAccessToken(paymentToken, Number(orderIdParam))
-      : verifyPaymentAccessTokenForOrderNumber(paymentToken, nomorPesanan);
+      ? isValidPaymentRouteId(orderIdParam) && verifyPaymentAccessFromCookies(paymentCookies, Number(orderIdParam))
+      : verifyPaymentAccessForOrderNumberFromCookies(paymentCookies, nomorPesanan);
     if (!hasValidIdentity) {
       return NextResponse.json({ error: "Akses pembayaran tidak valid atau sudah berakhir." }, { status: 401 });
     }
@@ -54,7 +54,8 @@ export async function GET(request: Request) {
                 uploaded_at,
                 verified_at,
                 bukti_pembayaran_url,
-                expires_at
+                expires_at,
+                reupload_expires_at
               )
               `,
             )
@@ -77,7 +78,8 @@ export async function GET(request: Request) {
                 uploaded_at,
                 verified_at,
                 bukti_pembayaran_url,
-                expires_at
+                expires_at,
+                reupload_expires_at
               )
               `,
             )

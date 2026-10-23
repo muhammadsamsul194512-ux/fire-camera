@@ -46,6 +46,7 @@ type Pesanan = {
         bukti_pembayaran_url: string | null;
         uploaded_at: string | null;
         verified_at: string | null;
+        reupload_expires_at?: string | null;
       }
     | Array<{
         id: number;
@@ -54,6 +55,7 @@ type Pesanan = {
         bukti_pembayaran_url: string | null;
         uploaded_at: string | null;
         verified_at: string | null;
+        reupload_expires_at?: string | null;
       }>
     | null;
 };
@@ -311,7 +313,16 @@ export default function RiwayatPage() {
                         </div>
                       </div>
                     )}
-                  {payment.uploaded_at && (
+                  {payment.status === "perlu_upload_ulang" && payment.reupload_expires_at && (
+                    <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-amber-300">Batas upload ulang</p>
+                      <div className="mt-1 font-semibold tabular-nums"><PaymentCountdown deadline={payment.reupload_expires_at} /></div>
+                    </div>
+                  )}
+                  {payment.status === "menunggu_verifikasi" && (
+                    <p className="mt-3 text-sm text-blue-300">Bukti pembayaran diterima dan sedang menunggu verifikasi admin.</p>
+                  )}
+                  {payment.status === "menunggu_verifikasi" && payment.uploaded_at && (
                     <p className="mt-3 text-xs text-zinc-500">
                       Bukti pembayaran sudah diunggah.
                     </p>
@@ -319,7 +330,6 @@ export default function RiwayatPage() {
                   {/* Link to payment page if pending */}
                   {(payment.status === "menunggu_pembayaran" ||
                     payment.status === "menunggu_verifikasi" ||
-                    payment.status === "ditolak" ||
                     payment.status === "perlu_upload_ulang") && (
                     <Link
                       href={

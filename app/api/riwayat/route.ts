@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import {
+  PAYMENT_ACCESS_MAX_AGE_SECONDS,
+  createPaymentAccessToken,
+  paymentAccessCookieName,
+} from "@/lib/payment-access";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY!;
@@ -66,7 +71,8 @@ payment (
   status,
   catatan_admin,
   uploaded_at,
-  verified_at
+  verified_at,
+  reupload_expires_at
 )
           `,
       )
@@ -125,7 +131,7 @@ payment (
       ? order.order_detail
       : [];
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       data: {
         id: order.id,
@@ -148,6 +154,21 @@ payment (
         order_detail: normalizedOrderDetail,
       },
     });
+    response.cookies.set({
+      name: paymentAccessCookieName(order.id)!,
+      value: createPaymentAccessToken({
+        orderId: order.id,
+        nomorPesanan: order.nomor_pesanan,
+        whatsapp: customer.whatsapp,
+        expiresAt: new Date(Date.now() + PAYMENT_ACCESS_MAX_AGE_SECONDS * 1000),
+      }),
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: PAYMENT_ACCESS_MAX_AGE_SECONDS,
+    });
+    return response;
   } catch (error) {
     console.error("Error API riwayat:", error);
 

@@ -17,6 +17,7 @@ type PaymentData = {
   uploaded_at: string | null;
   verified_at: string | null;
   bukti_pembayaran_url: string | null;
+  reupload_expires_at?: string | null;
 };
 
 type OrderData = {
@@ -55,6 +56,7 @@ function PembayaranDetailContent() {
   const orderId = Number(params?.id ?? 0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const statusRequestId = useRef(0);
 
   const [order, setOrder] = useState<OrderData | null>(null);
   const [payment, setPayment] = useState<PaymentData | null>(null);
@@ -74,14 +76,18 @@ function PembayaranDetailContent() {
 
   useEffect(() => {
     async function ambilStatus() {
+      const requestId = ++statusRequestId.current;
       if (!Number.isFinite(orderId) || orderId <= 0) {
         setLoadingStatus(false);
         return;
       }
 
       try {
-        const res = await fetch(`/api/pembayaran/${orderId}`);
+        const res = await fetch(`/api/pembayaran/${orderId}`, {
+          cache: "no-store",
+        });
         const hasil = await res.json();
+        if (requestId !== statusRequestId.current) return;
 
         if (!res.ok) {
           if (res.status === 401) {
@@ -99,36 +105,45 @@ function PembayaranDetailContent() {
         setPaymentExpiresAt(payload.payment_expires_at || null);
         setExpiredAt(payload.expired_at || null);
       } catch {
+        if (requestId !== statusRequestId.current) return;
         setError("Terjadi kesalahan saat memuat data pembayaran.");
       } finally {
-        setLoadingStatus(false);
+        if (requestId === statusRequestId.current) setLoadingStatus(false);
       }
     }
 
-    ambilStatus();
+    void ambilStatus();
+    const refresh = () => void ambilStatus();
+    const interval = window.setInterval(refresh, 15000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refresh);
+      statusRequestId.current += 1;
+    };
   }, [orderId]);
 
-  const paymentDeadline = paymentExpiresAt ? new Date(paymentExpiresAt) : null;
-  const timeRemainingMs = paymentDeadline
-    ? Math.max(paymentDeadline.getTime() - now, 0)
-    : 0;
-
-  const sedangUploadUlang =
-    payment?.status === "perlu_upload_ulang" || payment?.status === "ditolak";
+  const sedangUploadUlang = payment?.status === "perlu_upload_ulang";
   const sudahDikonfirmasi = payment?.status === "dikonfirmasi";
+  const deadlineBerlaku =
+    payment?.status === "perlu_upload_ulang"
+      ? payment.reupload_expires_at
+      : payment?.status === "menunggu_pembayaran"
+        ? paymentExpiresAt
+        : null;
+  const deadlineMs = deadlineBerlaku
+    ? new Date(deadlineBerlaku).getTime()
+    : null;
   const sudahKedaluwarsa =
     payment?.status === "kedaluwarsa" ||
     !!expiredAt ||
-    (paymentDeadline && timeRemainingMs <= 0);
+    (deadlineMs !== null && Number.isFinite(deadlineMs) && deadlineMs <= now);
 
   function bolehUpload() {
     if (!payment) return true;
-    return [
-      "menunggu_pembayaran",
-      "menunggu_verifikasi",
-      "ditolak",
-      "perlu_upload_ulang",
-    ].includes(payment.status);
+    return ["menunggu_pembayaran", "perlu_upload_ulang"].includes(
+      payment.status,
+    );
   }
 
   function pilihFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -213,6 +228,9 @@ function PembayaranDetailContent() {
               verified_at: null,
             }
           : prev,
+      );
+      setOrder((prev) =>
+        prev ? { ...prev, status: "menunggu_verifikasi" } : prev,
       );
     } catch {
       setError("Tidak dapat terhubung ke server. Silakan coba lagi.");
@@ -338,21 +356,33 @@ function PembayaranDetailContent() {
                 </div>
               </div>
 
-              {paymentExpiresAt && !sudahDikonfirmasi && !sudahKedaluwarsa && (
+              {payment?.status === "menunggu_verifikasi" && (
+                <div className="border-t border-zinc-800 pt-5">
+                  <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-3 text-sm text-blue-100">
+                    Bukti pembayaran sudah diterima. Pesanan menunggu verifikasi
+                    admin. Simpan bukti pembayaran untuk referensi. Admin akan
+                    menghubungi kamu melalui WhatsApp jika ada pertanyaan.
+                  </div>
+                </div>
+              )}
+
+              {deadlineBerlaku && !sudahDikonfirmasi && !sudahKedaluwarsa && (
                 <div className="border-t border-zinc-800 pt-5">
                   <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-3">
                     <p className="text-[10px] uppercase tracking-[0.2em] text-yellow-300">
-                      Countdown pembayaran
+                      {sedangUploadUlang
+                        ? "Batas upload ulang"
+                        : "Countdown pembayaran"}
                     </p>
                     <div className="mt-2 text-2xl font-bold text-yellow-200 tabular-nums">
                       <PaymentCountdown
-                        deadline={paymentExpiresAt}
+                        deadline={deadlineBerlaku}
                         className="inline-block"
                       />
                     </div>
                     <p className="mt-1 text-xs text-zinc-300">
-                      Batas pembayaran:{" "}
-                      {new Date(paymentExpiresAt).toLocaleString("id-ID", {
+                      Batas waktu:{" "}
+                      {new Date(deadlineBerlaku).toLocaleString("id-ID", {
                         dateStyle: "medium",
                         timeStyle: "short",
                       })}
@@ -469,7 +499,12 @@ function PembayaranDetailContent() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={loading || loadingStatus || !bolehUpload()}
+                  disabled={
+                    loading ||
+                    loadingStatus ||
+                    sudahKedaluwarsa ||
+                    !bolehUpload()
+                  }
                   className="mt-5 w-full rounded-full border border-zinc-700 px-5 py-3 font-semibold text-white transition hover:border-yellow-400 hover:text-yellow-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {sedangUploadUlang

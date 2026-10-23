@@ -19,6 +19,7 @@ type PesananDetail = {
   status: string;
   payment_expires_at?: string | null;
   expired_at?: string | null;
+  payment?: { status: string; reupload_expires_at?: string | null } | Array<{ status: string; reupload_expires_at?: string | null }> | null;
   created_at: string;
   customer: {
     nama_lengkap: string;
@@ -203,14 +204,18 @@ export default function AdminPesananDetailPage() {
   }
 
   const detailList = Array.isArray(order.detail) ? order.detail : [];
-  const paymentDeadline = order.payment_expires_at
-    ? new Date(order.payment_expires_at)
-    : null;
+  const payment = Array.isArray(order.payment) ? order.payment[0] : order.payment;
+  const activeDeadline = payment?.status === "perlu_upload_ulang"
+    ? payment.reupload_expires_at
+    : payment?.status === "menunggu_pembayaran"
+      ? order.payment_expires_at
+      : null;
+  const paymentDeadline = activeDeadline ? new Date(activeDeadline) : null;
   const timeRemainingMs = paymentDeadline
     ? Math.max(paymentDeadline.getTime() - now, 0)
     : 0;
   const isExpired = Boolean(
-    order.expired_at || (paymentDeadline && timeRemainingMs <= 0),
+    order.status === "kedaluwarsa" || (paymentDeadline && timeRemainingMs <= 0),
   );
 
   return (
@@ -249,7 +254,7 @@ export default function AdminPesananDetailPage() {
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.25em] text-gray-500">
-                  Batas Pembayaran
+                  {payment?.status === "perlu_upload_ulang" ? "Batas Upload Ulang" : "Batas Pembayaran"}
                 </p>
                 {paymentDeadline ? (
                   <p className="mt-2 text-2xl font-bold text-yellow-300">
@@ -264,14 +269,16 @@ export default function AdminPesananDetailPage() {
                   </p>
                 ) : (
                   <p className="mt-2 text-sm text-gray-400">
-                    Tidak ada tenggat pembayaran.
+                    {payment?.status === "menunggu_verifikasi"
+                      ? "Bukti telah dikirim dan sedang menunggu verifikasi admin."
+                      : "Tidak ada tenggat pembayaran yang sedang berlaku."}
                   </p>
                 )}
               </div>
 
               {paymentDeadline && !isExpired && (
                 <div className="rounded-full border border-yellow-500/30 bg-yellow-500/10 px-3 py-1.5 text-xs font-semibold text-yellow-300">
-                  Sisa waktu pembayaran
+                  {payment?.status === "perlu_upload_ulang" ? "Sisa waktu upload ulang" : "Sisa waktu pembayaran"}
                 </div>
               )}
             </div>
