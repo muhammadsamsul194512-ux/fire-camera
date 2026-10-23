@@ -28,11 +28,7 @@ BEGIN
     PERFORM cron.schedule(
       'expire-unpaid-bookings',
       '*/5 * * * *',
-      $$SELECT * FROM public.expire_unpaid_bookings();$$
+      $cron$SELECT * FROM public.expire_unpaid_bookings();$cron$
     );
-  ELSE
-    UPDATE cron.job
-    SET active = true
-    WHERE jobid = v_jobid;
   END IF;
 END $$;

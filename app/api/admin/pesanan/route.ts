@@ -95,6 +95,7 @@ export async function GET(request: Request) {
         bukti_pembayaran_url,
         uploaded_at,
         verified_at,
+        reupload_expires_at,
         created_at
       )
     `;

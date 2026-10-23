@@ -152,7 +152,7 @@ export default function AdminPembayaranPage() {
                         <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-3">
                           <div><p className="text-gray-500">Pelanggan</p><p className="mt-1 text-white">{payment.order?.customer?.nama_lengkap || "-"}</p><p className="text-gray-400">{payment.order?.customer?.whatsapp || "-"}</p></div>
                           <div><p className="text-gray-500">Tagihan · Metode</p><p className="mt-1 font-semibold text-yellow-300">{rupiah(payment.order?.total_harga ?? 0)}</p><p className="text-gray-300">{payment.metode || "-"}{payment.bank ? ` · ${payment.bank}` : ""}</p></div>
-                          <div><p className="text-gray-500">Bukti dikirim</p><p className="mt-1 text-white">{payment.uploaded_at ? new Date(payment.uploaded_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" }) : "-"}</p><p className="text-gray-400">Batas: {payment.order?.payment_expires_at ? new Date(payment.order.payment_expires_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" }) : "-"}</p></div>
+                          <div><p className="text-gray-500">Bukti dikirim</p><p className="mt-1 text-white">{payment.uploaded_at ? new Date(payment.uploaded_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" }) : "-"}</p></div>
                         </div>
                         <p className="mt-4 text-sm text-gray-300">{rental}</p>
                         <div className="mt-5 flex flex-wrap gap-2">

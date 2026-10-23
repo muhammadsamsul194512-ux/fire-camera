@@ -105,8 +105,8 @@ export async function GET(request: Request) {
     // CARI PESANAN YANG BENTROK
     // =========================
 
-    const { data: orderDetails, error: orderError } =
-      await supabaseAdmin
+    const buildOrderDetailsQuery = (includeReuploadDeadline: boolean) =>
+      supabaseAdmin
         .from("order_detail")
         .select(
           `
@@ -117,7 +117,8 @@ export async function GET(request: Request) {
             tanggal_kembali,
             jam_kembali,
             status,
-            payment_expires_at
+            payment_expires_at,
+            payment (${includeReuploadDeadline ? "status, reupload_expires_at" : "status"})
           )
         `
         )
@@ -128,6 +129,16 @@ export async function GET(request: Request) {
           "dikonfirmasi",
           "disewa",
         ]);
+
+    let { data: orderDetails, error: orderError } = await buildOrderDetailsQuery(true);
+    const missingReuploadDeadline = orderError?.code === "42703"
+      && orderError.message.includes("reupload_expires_at");
+    if (missingReuploadDeadline) {
+      // Keep availability checks working against databases before the
+      // replacement-deadline migration is applied. Such requests conservatively
+      // reserve stock until the migrated expiration job releases the order.
+      ({ data: orderDetails, error: orderError } = await buildOrderDetailsQuery(false));
+    }
 
     if (orderError) {
       console.error(
@@ -153,7 +164,10 @@ export async function GET(request: Request) {
 
       if (!order) continue;
 
-      if (!reservesInventory(order.status, order.payment_expires_at, new Date(now))) {
+      const payment = (Array.isArray(order.payment) ? order.payment[0] : order.payment) as
+        | { status?: string; reupload_expires_at?: string | null }
+        | null;
+      if (!reservesInventory(order.status, order.payment_expires_at, new Date(now), payment?.status, payment?.reupload_expires_at)) {
         continue;
       }
 
