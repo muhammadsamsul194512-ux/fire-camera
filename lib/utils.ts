@@ -1,3 +1,5 @@
+import { calculateRentalDays } from "@/lib/rental-duration";
+
 /** Shared utility: format Rupiah */
 export function formatRupiah(amount: number): string {
   return new Intl.NumberFormat("id-ID", {
@@ -36,8 +38,8 @@ export function tambahHari(dateStr: string, days: number): string {
 }
 
 /**
- * Calculate rental duration in whole days (calendar days).
- * Uses fixed pickup/return times defined by the store.
+ * Calculate chargeable rental days using the shared, exclusive return-date
+ * convention. Time validity is enforced by the availability and booking APIs.
  */
 export const JAM_AMBIL = "08:00";
 export const JAM_KEMBALI = "21:00";
@@ -46,10 +48,5 @@ export function hitungJumlahHari(
   tanggalAmbil: string,
   tanggalKembali: string
 ): number {
-  if (!tanggalAmbil || !tanggalKembali) return 0;
-  const mulai = new Date(`${tanggalAmbil}T${JAM_AMBIL}`);
-  const kembali = new Date(`${tanggalKembali}T${JAM_KEMBALI}`);
-  const selisihMs = kembali.getTime() - mulai.getTime();
-  if (selisihMs <= 0) return 0;
-  return Math.ceil(selisihMs / (1000 * 60 * 60 * 24));
+  return calculateRentalDays(tanggalAmbil, tanggalKembali);
 }

@@ -194,7 +194,7 @@ export default function KameraPage() {
             tanggalKembali={tanggalKembali}
             onChangeTanggalAmbil={(v) => {
               setTanggalAmbil(v);
-              if (tanggalKembali && v >= tanggalKembali) setTanggalKembali("");
+              if (tanggalKembali && v > tanggalKembali) setTanggalKembali("");
             }}
             onChangeTanggalKembali={setTanggalKembali}
             loadingAvailability={stokState.status === "loading"}

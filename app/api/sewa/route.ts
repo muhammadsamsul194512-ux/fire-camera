@@ -83,7 +83,6 @@ export async function POST(request: Request) {
       !isValidDate(tanggalKembali) ||
       !waktuAmbil ||
       !waktuKembali ||
-      tanggalKembali <= tanggalAmbil ||
       `${tanggalKembali}T${waktuKembali}` <= `${tanggalAmbil}T${waktuAmbil}`
     ) {
       return NextResponse.json(
