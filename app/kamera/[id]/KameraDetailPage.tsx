@@ -387,7 +387,7 @@ export default function KameraDetailPage() {
                       tanggalKembali={tanggalKembali}
                       onChangeTanggalAmbil={(v) => {
                         setTanggalAmbil(v);
-                        if (tanggalKembali && v >= tanggalKembali)
+                        if (tanggalKembali && v > tanggalKembali)
                           setTanggalKembali("");
                       }}
                       onChangeTanggalKembali={setTanggalKembali}

@@ -155,8 +155,8 @@ export default function AvailabilityCalendar({
     }
 
     // Second click — set end
-    if (dateStr <= tanggalAmbil) {
-      // Clicked before or on start: restart
+    if (dateStr < tanggalAmbil) {
+      // Clicked before start: restart
       onChangeTanggalAmbil(dateStr);
       onChangeTanggalKembali("");
       setHoverDate(null);
@@ -180,6 +180,7 @@ export default function AvailabilityCalendar({
   type DayState =
     | "past"
     | "unavailable"
+    | "single"
     | "start"
     | "end"
     | "in-range"
@@ -191,6 +192,7 @@ export default function AvailabilityCalendar({
     if (dateStr < today) return "past";
     if (unavailableDates.has(dateStr)) return "unavailable";
 
+    if (tanggalAmbil && tanggalKembali && tanggalAmbil === tanggalKembali && dateStr === tanggalAmbil) return "single";
     if (tanggalAmbil && dateStr === tanggalAmbil) return "start";
     if (tanggalKembali && dateStr === tanggalKembali) return "end";
 
@@ -214,7 +216,7 @@ export default function AvailabilityCalendar({
   // ── hover on a date — preview range ────────────────────────────────────────
   function handleMouseEnter(dateStr: string) {
     if (!pickingEnd) return;
-    if (dateStr <= tanggalAmbil) { setHoverDate(null); return; }
+    if (dateStr < tanggalAmbil) { setHoverDate(null); return; }
     if (unavailableDates.has(dateStr)) { setHoverDate(null); return; }
     setHoverDate(dateStr);
   }
@@ -232,6 +234,8 @@ export default function AvailabilityCalendar({
         return `${base} ${size} text-zinc-700 cursor-default`;
       case "unavailable":
         return `${base} ${size} text-zinc-700 cursor-not-allowed line-through`;
+      case "single":
+        return `${base} ${size} bg-yellow-400 text-black font-bold cursor-pointer`;
       case "start":
         return `${base} ${size} bg-yellow-400 text-black font-bold cursor-pointer rounded-r-none`;
       case "end":
@@ -310,7 +314,7 @@ export default function AvailabilityCalendar({
             }
             const dateStr = toYMD(date);
             const state = getDayState(dateStr);
-            const isStart = state === "start";
+            const isStart = state === "start" || state === "single";
             const isEnd = state === "end";
             const isSingleStart = isStart && !tanggalKembali;
 

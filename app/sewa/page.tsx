@@ -51,7 +51,7 @@ function DateEditPanel({
         tanggalKembali={localKembali}
         onChangeTanggalAmbil={(v) => {
           setLocalAmbil(v);
-          if (localKembali && v >= localKembali) setLocalKembali("");
+          if (localKembali && v > localKembali) setLocalKembali("");
         }}
         onChangeTanggalKembali={setLocalKembali}
       />
@@ -274,7 +274,7 @@ function SewaContent() {
       return;
     }
     if (jumlahHari <= 0) {
-      setError("Tanggal kembali harus setelah tanggal ambil.");
+      setError("Tanggal kembali tidak boleh sebelum tanggal ambil.");
       return;
     }
     if (jumlahEfektif < 1) {
