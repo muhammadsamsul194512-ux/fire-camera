@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { hasRentalOverlap, reservesInventory } from "@/lib/booking-rules";
+import { hasRentalOverlap, reservesInventory, isValidRentalSchedule, isFutureJakartaSlot } from "@/lib/booking-rules";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY!;
@@ -54,12 +54,21 @@ export async function GET(request: Request) {
 
     const waktuAmbilNormalized = normalizeTime(jamAmbil);
     const waktuKembaliNormalized = normalizeTime(jamKembali);
+    const { data: rentalSettings, error: settingsError } = await supabaseAdmin
+      .from("settings")
+      .select("rental_open_hour, rental_close_hour")
+      .single();
+    if (settingsError || !rentalSettings) {
+      return NextResponse.json({ error: "Pengaturan jadwal sewa belum tersedia." }, { status: 503 });
+    }
 
     if (
       !isValidDate(tanggalAmbil) ||
       !isValidDate(tanggalKembali) ||
       !waktuAmbilNormalized ||
-      !waktuKembaliNormalized
+      !waktuKembaliNormalized ||
+      !isValidRentalSchedule(tanggalAmbil, waktuAmbilNormalized, tanggalKembali, waktuKembaliNormalized, Number(rentalSettings.rental_open_hour), Number(rentalSettings.rental_close_hour)) ||
+      !isFutureJakartaSlot(tanggalAmbil, waktuAmbilNormalized)
     ) {
       return NextResponse.json(
         { error: "Tanggal atau waktu penyewaan tidak valid." },

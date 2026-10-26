@@ -14,7 +14,7 @@ export async function GET() {
     const { data, error } = await supabaseAdmin
   .from("settings")
   .select(
-  "nama_toko, whatsapp, bank, nomor_rekening, nama_pemilik_rekening, gambar_hero_url"
+  "nama_toko, whatsapp, bank, nomor_rekening, nama_pemilik_rekening, gambar_hero_url, rental_open_hour, rental_close_hour"
 )
   .single();
 
@@ -43,6 +43,8 @@ export async function GET() {
       data?.nama_pemilik_rekening || "",
     gambar_hero_url:
       data?.gambar_hero_url || "",
+    rental_open_hour: Number(data?.rental_open_hour ?? 8),
+    rental_close_hour: Number(data?.rental_close_hour ?? 20),
   },
 });
 

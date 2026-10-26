@@ -9,6 +9,8 @@ type Pengaturan = {
   nama_pemilik_rekening: string;
   gambar_hero_url: string;
   whatsapp: string;
+  rental_open_hour: number;
+  rental_close_hour: number;
 };
 
 const defaultPengaturan: Pengaturan = {
@@ -18,6 +20,8 @@ const defaultPengaturan: Pengaturan = {
   nama_pemilik_rekening: "",
   gambar_hero_url: "",
   whatsapp: "",
+  rental_open_hour: 8,
+  rental_close_hour: 20,
 };
 
 export function usePengaturan() {
