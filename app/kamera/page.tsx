@@ -10,9 +10,10 @@ import { useBookingStore } from "@/lib/booking-store";
 import {
   formatRupiah,
   hitungJumlahHari,
-  JAM_AMBIL,
-  JAM_KEMBALI,
+  getPickupSlots,
+  hariIniJakarta,
 } from "@/lib/utils";
+import { isFutureJakartaSlot } from "@/lib/booking-rules";
 import { supabase } from "@/lib/supabase";
 
 type Camera = {
@@ -40,6 +41,8 @@ export default function KameraPage() {
 
   const [tanggalAmbil, setTanggalAmbil] = useState("");
   const [tanggalKembali, setTanggalKembali] = useState("");
+  const [jamAmbil, setJamAmbil] = useState("");
+  const pickupSlots = getPickupSlots(pengaturan.rental_open_hour, pengaturan.rental_close_hour);
 
   const [stokState, setStokState] = useState<StokState>({ status: "idle" });
 
@@ -64,7 +67,7 @@ export default function KameraPage() {
 
   // Check availability whenever valid dates are set
   const cekStok = useCallback(async () => {
-    if (!tanggalAmbil || !tanggalKembali) {
+    if (!tanggalAmbil || !tanggalKembali || !jamAmbil) {
       setStokState({ status: "idle" });
       return;
     }
@@ -82,9 +85,9 @@ export default function KameraPage() {
           const params = new URLSearchParams({
             kameraId: String(cam.id),
             tanggalAmbil,
-            jamAmbil: JAM_AMBIL,
+            jamAmbil,
             tanggalKembali,
-            jamKembali: JAM_KEMBALI,
+            jamKembali: jamAmbil,
           });
           const res = await fetch(`/api/kamera/stok?${params}`);
           const json = await res.json();
@@ -109,7 +112,7 @@ export default function KameraPage() {
         message: "Gagal mengecek ketersediaan. Silakan coba lagi.",
       });
     }
-  }, [cameras, tanggalAmbil, tanggalKembali]);
+  }, [cameras, tanggalAmbil, tanggalKembali, jamAmbil]);
 
   useEffect(() => {
     async function run() {
@@ -122,6 +125,7 @@ export default function KameraPage() {
   const datesSelected = !!(
     tanggalAmbil &&
     tanggalKembali &&
+    jamAmbil &&
     hitungJumlahHari(tanggalAmbil, tanggalKembali) > 0
   );
 
@@ -139,6 +143,7 @@ export default function KameraPage() {
       cameraId: String(cam.id),
       tanggalAmbil,
       tanggalKembali,
+      jamAmbil,
     });
   }
 
@@ -152,6 +157,7 @@ export default function KameraPage() {
     const params = new URLSearchParams();
     if (tanggalAmbil) params.set("tanggalAmbil", tanggalAmbil);
     if (tanggalKembali) params.set("tanggalKembali", tanggalKembali);
+    if (jamAmbil) params.set("jamAmbil", jamAmbil);
     const qs = params.toString();
     return `/kamera/${cam.id}${qs ? `?${qs}` : ""}`;
   }
@@ -200,6 +206,14 @@ export default function KameraPage() {
             loadingAvailability={stokState.status === "loading"}
             compact
           />
+          <label className="mt-4 block text-sm font-medium">Waktu pengambilan</label>
+          <select className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white" value={jamAmbil} onChange={(event) => setJamAmbil(event.target.value)}>
+            <option value="">Pilih slot pengambilan</option>
+            {pickupSlots.map((slot) => {
+              const past = tanggalAmbil === hariIniJakarta() && !isFutureJakartaSlot(tanggalAmbil, slot);
+              return <option key={slot} value={slot} disabled={past}>{slot}{past ? " · sudah lewat" : ""}</option>;
+            })}
+          </select>
         </div>
       </section>
 

@@ -6,7 +6,7 @@ import {
   createPaymentAccessToken,
   paymentAccessCookieName,
 } from "@/lib/payment-access";
-import { isValidRequestedQuantity } from "@/lib/booking-rules";
+import { isValidRequestedQuantity, isValidRentalSchedule, isFutureJakartaSlot } from "@/lib/booking-rules";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY!;
@@ -77,16 +77,24 @@ export async function POST(request: Request) {
 
     const waktuAmbil = normalizeTime(jamAmbil);
     const waktuKembali = normalizeTime(jamKembali);
+    const { data: rentalSettings, error: settingsError } = await supabaseAdmin
+      .from("settings")
+      .select("rental_open_hour, rental_close_hour")
+      .single();
+    if (settingsError || !rentalSettings) {
+      return NextResponse.json({ error: "Pengaturan jadwal sewa belum tersedia." }, { status: 503 });
+    }
 
     if (
       !isValidDate(tanggalAmbil) ||
       !isValidDate(tanggalKembali) ||
       !waktuAmbil ||
       !waktuKembali ||
-      `${tanggalKembali}T${waktuKembali}` <= `${tanggalAmbil}T${waktuAmbil}`
+      !isValidRentalSchedule(tanggalAmbil, waktuAmbil, tanggalKembali, waktuKembali, Number(rentalSettings.rental_open_hour), Number(rentalSettings.rental_close_hour)) ||
+      !isFutureJakartaSlot(tanggalAmbil, waktuAmbil)
     ) {
       return NextResponse.json(
-        { error: "Tanggal atau waktu penyewaan tidak valid." },
+        { error: "Pilih slot pengambilan sesuai jam operasional, dengan durasi minimal 24 jam dan jam pengembalian yang sama." },
         { status: 400 },
       );
     }

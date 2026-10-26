@@ -5,6 +5,7 @@ type BookingState = {
   cameraId: string;
   tanggalAmbil: string;
   tanggalKembali: string;
+  jamAmbil: string;
 };
 
 type BookingStore = BookingState & {
@@ -18,12 +19,14 @@ export const useBookingStore = create<BookingStore>()(
       cameraId: "",
       tanggalAmbil: "",
       tanggalKembali: "",
+      jamAmbil: "",
       setBooking: (partial) => set((state) => ({ ...state, ...partial })),
       clearBooking: () =>
         set({
           cameraId: "",
           tanggalAmbil: "",
           tanggalKembali: "",
+          jamAmbil: "",
         }),
     }),
     {

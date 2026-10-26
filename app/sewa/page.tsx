@@ -12,10 +12,11 @@ import {
   formatRupiah,
   formatTanggal,
   hitungJumlahHari,
-  JAM_AMBIL,
-  JAM_KEMBALI,
+  getPickupSlots,
+  hariIniJakarta,
 } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+import { isFutureJakartaSlot } from "@/lib/booking-rules";
 
 type KameraOption = {
   id: number;
@@ -87,6 +88,7 @@ function SewaContent() {
     cameraId: storedCameraId,
     tanggalAmbil: storedTanggalAmbil,
     tanggalKembali: storedTanggalKembali,
+    jamAmbil: storedJamAmbil,
     setBooking,
     clearBooking,
   } = useBookingStore();
@@ -122,20 +124,24 @@ function SewaContent() {
     storedTanggalKembali || tanggalKembaliFromUrl,
   );
   const [jumlah, setJumlah] = useState(1);
+  const [jamAmbil, setJamAmbil] = useState(storedJamAmbil || "");
+  const pickupSlots = getPickupSlots(pengaturan.rental_open_hour, pengaturan.rental_close_hour);
 
   useEffect(() => {
     if (storedCameraId) setKameraId(storedCameraId);
     if (storedTanggalAmbil) setTanggalAmbil(storedTanggalAmbil);
     if (storedTanggalKembali) setTanggalKembali(storedTanggalKembali);
-  }, [storedCameraId, storedTanggalAmbil, storedTanggalKembali]);
+    if (storedJamAmbil) setJamAmbil(storedJamAmbil);
+  }, [storedCameraId, storedTanggalAmbil, storedTanggalKembali, storedJamAmbil]);
 
   useEffect(() => {
     setBooking({
       cameraId: kameraId,
       tanggalAmbil,
       tanggalKembali,
+      jamAmbil,
     });
-  }, [kameraId, tanggalAmbil, tanggalKembali, setBooking]);
+  }, [kameraId, tanggalAmbil, tanggalKembali, jamAmbil, setBooking]);
 
   // Inline date-edit toggle
   const [editingDates, setEditingDates] = useState(
@@ -184,6 +190,7 @@ function SewaContent() {
     !!kameraTerpilih &&
     !!tanggalAmbil &&
     !!tanggalKembali &&
+    !!jamAmbil &&
     datesValid &&
     jumlahEfektif >= 1 &&
     stokStatus.status === "available" &&
@@ -193,7 +200,7 @@ function SewaContent() {
     let cancelled = false;
 
     async function cekKetersediaan() {
-      if (!kameraTerpilih || !tanggalAmbil || !tanggalKembali) {
+      if (!kameraTerpilih || !tanggalAmbil || !tanggalKembali || !jamAmbil) {
         setStokStatus({ status: "idle" });
         return;
       }
@@ -209,9 +216,9 @@ function SewaContent() {
         const params = new URLSearchParams({
           kameraId: String(kameraTerpilih.id),
           tanggalAmbil,
-          jamAmbil: JAM_AMBIL,
+          jamAmbil,
           tanggalKembali,
-          jamKembali: JAM_KEMBALI,
+          jamKembali: jamAmbil,
         });
 
         const res = await fetch(`/api/kamera/stok?${params}`);
@@ -250,7 +257,7 @@ function SewaContent() {
     return () => {
       cancelled = true;
     };
-  }, [kameraTerpilih, tanggalAmbil, tanggalKembali]);
+  }, [kameraTerpilih, tanggalAmbil, tanggalKembali, jamAmbil]);
 
   // ── Submission ────────────────────────────────────────────────
   async function handleSubmit(e: React.FormEvent) {
@@ -271,6 +278,10 @@ function SewaContent() {
     }
     if (!tanggalAmbil || !tanggalKembali) {
       setError("Tanggal pengambilan dan pengembalian wajib diisi.");
+      return;
+    }
+    if (!jamAmbil) {
+      setError("Pilih waktu pengambilan kamera terlebih dahulu.");
       return;
     }
     if (jumlahHari <= 0) {
@@ -316,9 +327,9 @@ function SewaContent() {
           kamera: kameraTerpilih.nama,
           kameraId: kameraTerpilih.id,
           tanggalAmbil,
-          jamAmbil: JAM_AMBIL,
+          jamAmbil,
           tanggalKembali,
-          jamKembali: JAM_KEMBALI,
+          jamKembali: jamAmbil,
           jumlah: jumlahEfektif,
         }),
       });
@@ -517,6 +528,20 @@ function SewaContent() {
                   )}
                 </div>
 
+                <div className="mt-4">
+                  <label htmlFor="pickup-slot" className="mb-1.5 block text-sm font-medium">
+                    Waktu pengambilan <span className="text-red-400">*</span>
+                  </label>
+                  <select id="pickup-slot" className={inputClass} value={jamAmbil} onChange={(event) => setJamAmbil(event.target.value)} required>
+                    <option value="">Pilih slot pengambilan</option>
+                    {pickupSlots.map((slot) => {
+                      const past = tanggalAmbil === hariIniJakarta() && !isFutureJakartaSlot(tanggalAmbil, slot);
+                      return <option key={slot} value={slot} disabled={past}>{slot}{past ? " · sudah lewat" : ""}</option>;
+                    })}
+                  </select>
+                  <p className="mt-1.5 text-xs text-zinc-500">Pengembalian dijadwalkan pada jam yang sama setelah durasi penuh 24 jam per hari.</p>
+                </div>
+
                 {datesValid && !editingDates ? (
                   /* ─ Dates confirmed — show as locked summary ─ */
                   <div className="mt-4 space-y-2">
@@ -525,7 +550,7 @@ function SewaContent() {
                       <span className="font-semibold">
                         {formatTanggal(tanggalAmbil)},{" "}
                         <span className="text-zinc-400 font-normal">
-                          pukul 08.00
+                          pukul {jamAmbil || "pilih slot"}
                         </span>
                       </span>
                     </div>
@@ -534,7 +559,7 @@ function SewaContent() {
                       <span className="font-semibold">
                         {formatTanggal(tanggalKembali)},{" "}
                         <span className="text-zinc-400 font-normal">
-                          pukul 21.00
+                          pukul {jamAmbil || "menyesuaikan slot"}
                         </span>
                       </span>
                     </div>
