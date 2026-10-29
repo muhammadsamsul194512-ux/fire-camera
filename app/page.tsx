@@ -51,7 +51,7 @@ export default function Home() {
             <div className="mt-10 flex items-center gap-8">
               <div>
                 <p className="text-2xl font-bold">Harga</p>
-                <p className="text-sm text-zinc-500">Mulai dari terjangkau</p>
+                <p className="text-sm text-zinc-500">Mulai dari 50K</p>
               </div>
               <div className="h-10 w-px bg-zinc-800" />
               <div>
