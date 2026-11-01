@@ -10,50 +10,51 @@ export default function AdminPage() {
   const [namaToko, setNamaToko] = useState("");
 
   useEffect(() => {
-  async function cekAksesAdmin() {
-    try {
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
+    async function cekAksesAdmin() {
+      try {
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
 
-      if (sessionError || !session) {
-        router.replace("/admin/login");
-        return;
-      }
-
-      const response = await fetch(
-        "/api/admin/settings",
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
+        if (sessionError || !session) {
+          router.replace("/admin/login");
+          return;
         }
-      );
 
-      const hasil = await response.json();
+        const response = await fetch(
+          "/api/admin/settings",
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          }
+        );
 
-      if (!response.ok) {
+        const hasil = await response.json();
+
+        if (!response.ok) {
+          router.replace("/admin/login");
+          return;
+        }
+
+        if (hasil.data?.nama_toko) {
+          setNamaToko(hasil.data.nama_toko);
+        }
+      } catch (error) {
+        console.error(
+          "Error mengecek akses admin:",
+          error
+        );
+
         router.replace("/admin/login");
-        return;
       }
-
-      if (hasil.data?.nama_toko) {
-        setNamaToko(hasil.data.nama_toko);
-      }
-    } catch (error) {
-      console.error(
-        "Error mengecek akses admin:",
-        error
-      );
-
-      router.replace("/admin/login");
     }
-  }
 
-  cekAksesAdmin();
-}, [router]);
+    cekAksesAdmin();
+  }, [router]);
+
   async function handleLogout() {
     await supabase.auth.signOut();
     router.push("/admin/login");
@@ -103,93 +104,125 @@ export default function AdminPage() {
 
       {/* MENU */}
       <section className="mx-auto max-w-7xl px-6 py-12">
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
 
           {/* KAMERA */}
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-            <p className="text-sm text-zinc-500">
-              Kamera
-            </p>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 flex flex-col justify-between">
+            <div>
+              <p className="text-sm text-zinc-500">
+                Kamera
+              </p>
 
-            <h3 className="mt-2 text-xl font-bold">
-              Kelola Kamera
-            </h3>
+              <h3 className="mt-2 text-xl font-bold">
+                Kelola Kamera
+              </h3>
 
-            <p className="mt-3 text-sm leading-6 text-zinc-400">
-              Tambah, edit, hapus kamera dan atur stok.
-            </p>
+              <p className="mt-3 text-sm leading-6 text-zinc-400">
+                Tambah, edit, hapus kamera dan atur stok.
+              </p>
+            </div>
 
             <a
               href="/admin/kamera"
-              className="mt-5 inline-block rounded-full bg-yellow-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-yellow-300"
+              className="mt-5 inline-block w-fit rounded-full bg-yellow-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-yellow-300"
             >
               Kelola
             </a>
           </div>
 
           {/* PESANAN */}
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-            <p className="text-sm text-zinc-500">
-              Pesanan
-            </p>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 flex flex-col justify-between">
+            <div>
+              <p className="text-sm text-zinc-500">
+                Pesanan
+              </p>
 
-            <h3 className="mt-2 text-xl font-bold">
-              Kelola Pesanan
-            </h3>
+              <h3 className="mt-2 text-xl font-bold">
+                Kelola Pesanan
+              </h3>
 
-            <p className="mt-3 text-sm leading-6 text-zinc-400">
-              Lihat dan kelola pesanan pelanggan.
-            </p>
+              <p className="mt-3 text-sm leading-6 text-zinc-400">
+                Lihat dan kelola pesanan pelanggan.
+              </p>
+            </div>
 
             <a
               href="/admin/pesanan"
-              className="mt-5 inline-block rounded-full bg-yellow-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-yellow-300"
+              className="mt-5 inline-block w-fit rounded-full bg-yellow-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-yellow-300"
             >
               Lihat Pesanan
             </a>
           </div>
 
           {/* PEMBAYARAN */}
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-            <p className="text-sm text-zinc-500">
-              Pembayaran
-            </p>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 flex flex-col justify-between">
+            <div>
+              <p className="text-sm text-zinc-500">
+                Pembayaran
+              </p>
 
-            <h3 className="mt-2 text-xl font-bold">
-              Verifikasi Pembayaran
-            </h3>
+              <h3 className="mt-2 text-xl font-bold">
+                Verifikasi Pembayaran
+              </h3>
 
-            <p className="mt-3 text-sm leading-6 text-zinc-400">
-              Periksa bukti pembayaran pelanggan.
-            </p>
+              <p className="mt-3 text-sm leading-6 text-zinc-400">
+                Periksa bukti pembayaran pelanggan.
+              </p>
+            </div>
 
             <a
               href="/admin/pembayaran"
-              className="mt-5 inline-block rounded-full bg-yellow-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-yellow-300"
+              className="mt-5 inline-block w-fit rounded-full bg-yellow-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-yellow-300"
             >
               Verifikasi
             </a>
           </div>
 
           {/* PENGATURAN */}
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-            <p className="text-sm text-zinc-500">
-              Pengaturan
-            </p>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 flex flex-col justify-between">
+            <div>
+              <p className="text-sm text-zinc-500">
+                Pengaturan
+              </p>
 
-            <h3 className="mt-2 text-xl font-bold">
-              Pengaturan Toko
-            </h3>
+              <h3 className="mt-2 text-xl font-bold">
+                Pengaturan Toko
+              </h3>
 
-            <p className="mt-3 text-sm leading-6 text-zinc-400">
-              Atur informasi rekening dan informasi bisnis.
-            </p>
+              <p className="mt-3 text-sm leading-6 text-zinc-400">
+                Atur informasi rekening dan informasi bisnis.
+              </p>
+            </div>
 
             <a
               href="/admin/pengaturan"
-              className="mt-5 inline-block rounded-full bg-yellow-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-yellow-300"
+              className="mt-5 inline-block w-fit rounded-full bg-yellow-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-yellow-300"
             >
               Pengaturan
+            </a>
+          </div>
+
+          {/* KRITIK & SARAN */}
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 flex flex-col justify-between">
+            <div>
+              <p className="text-sm text-zinc-500">
+                Ulasan
+              </p>
+
+              <h3 className="mt-2 text-xl font-bold">
+                Kritik & Saran
+              </h3>
+
+              <p className="mt-3 text-sm leading-6 text-zinc-400">
+                Lihat dan kelola masukan dari pelanggan.
+              </p>
+            </div>
+
+            <a
+              href="/admin/kritik-saran"
+              className="mt-5 inline-block w-fit rounded-full bg-yellow-400 px-4 py-2 text-sm font-semibold text-black transition hover:bg-yellow-300"
+            >
+              Lihat Masukan
             </a>
           </div>
 
