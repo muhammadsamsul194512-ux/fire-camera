@@ -38,7 +38,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       lang="id"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-black text-white">
+      <body className="min-h-full flex flex-col bg-black text-white" suppressHydrationWarning>
         {/* Konten Utama */}
         <div className="flex-1">{children}</div>
 
@@ -67,11 +67,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 Beranda
               </Link>
               <Link 
-  href="/kritik-saran" 
-  className="transition hover:text-yellow-400"
->
-  Kritik & Saran
-</Link>
+                href="/kritik-saran" 
+                className="transition hover:text-yellow-400"
+              >
+                Kritik & Saran
+              </Link>
             </div>
           </div>
         </footer>
