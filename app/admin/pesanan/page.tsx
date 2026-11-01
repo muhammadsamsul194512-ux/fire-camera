@@ -10,6 +10,7 @@ import {
   countActiveFilters,
   DATE_FIELDS,
   filtersToApiParams,
+  monthToDateRange,
   ORDER_STATUSES,
   PAYMENT_STATUSES,
   SORT_OPTIONS,
@@ -335,6 +336,28 @@ export default function AdminPesananPage() {
     setDraft((prev) => ({ ...prev, [key]: value }));
   }
 
+  function handleMonthChange(month: string) {
+    setFilterError("");
+    if (!month) {
+      setDraft((prev) => ({
+        ...prev,
+        datePreset: "all",
+        dateStart: "",
+        dateEnd: "",
+      }));
+      return;
+    }
+
+    const range = monthToDateRange(month);
+    if (!range) return;
+    setDraft((prev) => ({
+      ...prev,
+      datePreset: "custom",
+      dateStart: range.start,
+      dateEnd: range.end,
+    }));
+  }
+
   // ── Apply / Reset ─────────────────────────────────────────────────────────
 
   function applyFilters() {
@@ -542,6 +565,7 @@ export default function AdminPesananPage() {
                   onDateFieldChange={(v) => setDraftField("dateField", v as DateField)}
                   onStartChange={(v) => setDraftField("dateStart", v)}
                   onEndChange={(v) => setDraftField("dateEnd", v)}
+                  onMonthChange={handleMonthChange}
                 />
               </div>
 

@@ -160,6 +160,32 @@ export function nextJakartaDate(dateStr: string): string {
 }
 
 /**
+ * Convert a month input value (YYYY-MM) to an inclusive calendar-date range.
+ * The shared date query later converts its final date to an exclusive bound.
+ */
+export function monthToDateRange(monthValue: string): { start: string; end: string } | null {
+  const match = /^(\d{4})-(\d{2})$/.exec(monthValue);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (year < 1 || month < 1 || month > 12) return null;
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return {
+    start: `${match[1]}-${match[2]}-01`,
+    end: `${match[1]}-${match[2]}-${String(lastDay).padStart(2, "0")}`,
+  };
+}
+
+/**
+ * Return the month input value only when a custom range is exactly one month.
+ */
+export function dateRangeToMonthValue(start: string, end: string): string {
+  const monthValue = start.slice(0, 7);
+  const monthRange = monthToDateRange(monthValue);
+  return monthRange?.start === start && monthRange.end === end ? monthValue : "";
+}
+
+/**
  * Compute the start and exclusive end for a given preset, relative to `now`.
  * Returns null for "all", "custom", and "exact" (caller handles those).
  * Both boundaries are UTC ISO strings for timestamptz comparisons.
