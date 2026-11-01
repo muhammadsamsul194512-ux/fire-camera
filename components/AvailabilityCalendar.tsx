@@ -78,6 +78,8 @@ export type AvailabilityCalendarProps = {
   tanggalKembali: string;
   onChangeTanggalAmbil: (v: string) => void;
   onChangeTanggalKembali: (v: string) => void;
+  selectionMode?: "rental" | "filter-range" | "filter-exact";
+  allowPastDates?: boolean;
   /** Set of YYYY-MM-DD strings that are fully unavailable */
   unavailableDates?: Set<string>;
   loadingAvailability?: boolean;
@@ -88,11 +90,16 @@ export default function AvailabilityCalendar({
   tanggalKembali,
   onChangeTanggalAmbil,
   onChangeTanggalKembali,
+  selectionMode = "rental",
+  allowPastDates = false,
   unavailableDates = new Set(),
   loadingAvailability = false,
 }: AvailabilityCalendarProps) {
   const today = hariIni();
   const todayDate = parseYMD(today);
+  const canSelectPastDates = selectionMode !== "rental" || allowPastDates;
+  const isUnavailable = (dateStr: string) =>
+    selectionMode === "rental" && unavailableDates.has(dateStr);
 
   // Which month is the calendar showing?
   const [viewYear, setViewYear] = useState(() => {
@@ -111,7 +118,7 @@ export default function AvailabilityCalendar({
   const cells = useMemo(() => buildGrid(viewYear, viewMonth), [viewYear, viewMonth]);
 
   // Don't allow navigating before the current month
-  const canGoPrev =
+  const canGoPrev = canSelectPastDates ||
     viewYear > todayDate.getFullYear() ||
     (viewYear === todayDate.getFullYear() && viewMonth > todayDate.getMonth() + 1);
 
@@ -134,7 +141,7 @@ export default function AvailabilityCalendar({
     const d = new Date(s);
     d.setDate(d.getDate() + 1); // don't check start itself
     while (d < e) {
-      if (unavailableDates.has(toYMD(d))) return true;
+      if (isUnavailable(toYMD(d))) return true;
       d.setDate(d.getDate() + 1);
     }
     return false;
@@ -142,9 +149,16 @@ export default function AvailabilityCalendar({
 
   // ── click handler ──────────────────────────────────────────────────────────
   function handleClick(dateStr: string) {
-    const isUnavail = unavailableDates.has(dateStr);
+    if (selectionMode === "filter-exact") {
+      onChangeTanggalAmbil(dateStr);
+      onChangeTanggalKembali("");
+      setHoverDate(null);
+      return;
+    }
+
+    const isUnavail = isUnavailable(dateStr);
     if (isUnavail) return;
-    if (dateStr < today) return;
+    if (!canSelectPastDates && dateStr < today) return;
 
     if (!tanggalAmbil || (tanggalAmbil && tanggalKembali)) {
       // Start fresh: set start, clear end
@@ -189,8 +203,8 @@ export default function AvailabilityCalendar({
     | "available";
 
   function getDayState(dateStr: string): DayState {
-    if (dateStr < today) return "past";
-    if (unavailableDates.has(dateStr)) return "unavailable";
+    if (!canSelectPastDates && dateStr < today) return "past";
+    if (isUnavailable(dateStr)) return "unavailable";
 
     if (tanggalAmbil && tanggalKembali && tanggalAmbil === tanggalKembali && dateStr === tanggalAmbil) return "single";
     if (tanggalAmbil && dateStr === tanggalAmbil) return "start";
@@ -211,13 +225,13 @@ export default function AvailabilityCalendar({
   }
 
   const jumlahHari = hitungJumlahHari(tanggalAmbil, tanggalKembali);
-  const pickingEnd = !!(tanggalAmbil && !tanggalKembali);
+  const pickingEnd = selectionMode !== "filter-exact" && !!(tanggalAmbil && !tanggalKembali);
 
   // ── hover on a date — preview range ────────────────────────────────────────
   function handleMouseEnter(dateStr: string) {
     if (!pickingEnd) return;
     if (dateStr < tanggalAmbil) { setHoverDate(null); return; }
-    if (unavailableDates.has(dateStr)) { setHoverDate(null); return; }
+    if (isUnavailable(dateStr)) { setHoverDate(null); return; }
     setHoverDate(dateStr);
   }
 
@@ -283,13 +297,17 @@ export default function AvailabilityCalendar({
       </div>
 
       {/* ── Instruction hint ─────────────────────────────────────────── */}
-      <p className="mb-3 text-center text-xs text-zinc-500">
-        {!tanggalAmbil
-          ? "Pilih tanggal pengambilan"
-          : pickingEnd
-          ? "Pilih tanggal pengembalian"
-          : null}
-      </p>
+      {(selectionMode === "filter-exact" || !tanggalAmbil || pickingEnd) && (
+        <p className="mb-3 text-center text-xs text-zinc-500">
+          {selectionMode === "filter-exact"
+            ? "Pilih tanggal"
+            : !tanggalAmbil
+              ? selectionMode === "rental" ? "Pilih tanggal pengambilan" : "Pilih tanggal mulai"
+              : pickingEnd
+                ? selectionMode === "rental" ? "Pilih tanggal pengembalian" : "Pilih tanggal akhir"
+                : null}
+        </p>
+      )}
 
       {/* ── Day-of-week headers ───────────────────────────────────────── */}
       <div className="mb-1 grid grid-cols-7 text-center">
@@ -345,7 +363,7 @@ export default function AvailabilityCalendar({
       )}
 
       {/* ── Range summary ─────────────────────────────────────────────── */}
-      {tanggalAmbil && tanggalKembali && jumlahHari > 0 && (
+      {selectionMode === "rental" && tanggalAmbil && tanggalKembali && jumlahHari > 0 && (
         <div className="mt-4 rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-3">
           <p className="text-sm font-semibold text-yellow-400">
             {jumlahHari} hari sewa
@@ -357,8 +375,20 @@ export default function AvailabilityCalendar({
         </div>
       )}
 
+      {selectionMode !== "rental" && tanggalAmbil && (
+        <div className="mt-4 rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-3">
+          <p className="text-sm font-semibold text-yellow-400">
+            {selectionMode === "filter-exact"
+              ? formatTanggal(tanggalAmbil)
+              : tanggalKembali
+                ? `${formatTanggal(tanggalAmbil)} → ${formatTanggal(tanggalKembali)}`
+                : `Mulai ${formatTanggal(tanggalAmbil)} — pilih tanggal akhir`}
+          </p>
+        </div>
+      )}
+
       {/* ── Picking-end hint ──────────────────────────────────────────── */}
-      {tanggalAmbil && !tanggalKembali && (
+      {selectionMode === "rental" && tanggalAmbil && !tanggalKembali && (
         <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-2.5 text-xs text-zinc-500">
           Tanggal ambil: <span className="font-semibold text-zinc-300">{formatTanggal(tanggalAmbil)}</span>.
           Sekarang pilih tanggal kembali.
@@ -366,7 +396,7 @@ export default function AvailabilityCalendar({
       )}
 
       {/* ── Legend ────────────────────────────────────────────────────── */}
-      {unavailableDates.size > 0 && (
+      {selectionMode === "rental" && unavailableDates.size > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
           <span className="flex items-center gap-1.5 text-[10px] text-zinc-600">
             <span className="h-3 w-3 rounded-sm bg-yellow-400" />
