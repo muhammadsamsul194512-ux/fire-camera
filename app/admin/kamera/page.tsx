@@ -114,6 +114,44 @@ export default function AdminKameraPage() {
     }
   }
 
+  async function hapusKamera(item: Camera) {
+    const yakin = window.confirm(
+      `PERINGATAN: Apakah Anda yakin ingin menghapus kamera "${item.brand} ${item.nama}" secara permanen dari database?`
+    );
+
+    if (!yakin) return;
+
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session) {
+        router.replace("/admin/login");
+        return;
+      }
+
+      const response = await fetch(`/api/admin/kamera?id=${item.id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      const hasil = await response.json();
+      if (!response.ok) {
+        setError(hasil.error || "Gagal menghapus kamera.");
+        return;
+      }
+
+      await ambilKamera();
+    } catch (error) {
+      console.error("Gagal menghapus kamera:", error);
+      setError("Terjadi kesalahan saat menghapus kamera.");
+    }
+  }
+
   useEffect(() => {
     void ambilKamera();
   }, [router]);
@@ -318,6 +356,13 @@ export default function AdminKameraPage() {
                             }
                           >
                             {item.aktif ? "Nonaktifkan" : "Aktifkan"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => hapusKamera(item)}
+                            className="rounded-full border border-gray-600 px-4 py-2 text-xs font-semibold text-gray-400 transition hover:border-red-500 hover:bg-red-500 hover:text-white"
+                          >
+                            Hapus
                           </button>
                         </div>
                       </td>

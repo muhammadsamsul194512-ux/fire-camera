@@ -35,6 +35,22 @@ type Pesanan = {
 
 const orderStatuses = ["menunggu_pembayaran", "menunggu_verifikasi", "dikonfirmasi", "disewa", "selesai", "dibatalkan", "ditolak", "kedaluwarsa"];
 
+const listBulan = [
+  { value: "all", label: "Semua bulan" },
+  { value: "01", label: "Januari" },
+  { value: "02", label: "Februari" },
+  { value: "03", label: "Maret" },
+  { value: "04", label: "April" },
+  { value: "05", label: "Mei" },
+  { value: "06", label: "Juni" },
+  { value: "07", label: "Juli" },
+  { value: "08", label: "Agustus" },
+  { value: "09", label: "September" },
+  { value: "10", label: "Oktober" },
+  { value: "11", label: "November" },
+  { value: "12", label: "Desember" },
+];
+
 function formatRupiah(value: number) {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -50,6 +66,7 @@ export default function AdminPesananPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [bulanFilter, setBulanFilter] = useState("all");
 
   async function ambilPesanan() {
     setLoading(true);
@@ -109,9 +126,17 @@ export default function AdminPesananPage() {
       const matchesStatus =
         statusFilter === "all" || item.status === statusFilter;
 
-      return matchesSearch && matchesStatus;
+      // Filter berdasarkan bulan dari tanggal pesanan dibuat (created_at) atau tanggal ambil
+      let matchesBulan = true;
+      if (bulanFilter !== "all" && item.created_at) {
+        // Format created_at dari database biasanya "YYYY-MM-DD..."
+        const bulanPesanan = item.created_at.substring(5, 7); // Mengambil bagian bulan "MM"
+        matchesBulan = bulanPesanan === bulanFilter;
+      }
+
+      return matchesSearch && matchesStatus && matchesBulan;
     });
-  }, [pesanan, search, statusFilter]);
+  }, [pesanan, search, statusFilter, bulanFilter]);
 
   return (
     <main className="min-h-screen bg-black px-4 py-8 text-white md:px-6 lg:px-8">
@@ -155,6 +180,20 @@ export default function AdminPesananPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
+              {/* Filter Bulan */}
+              <select
+                value={bulanFilter}
+                onChange={(event) => setBulanFilter(event.target.value)}
+                className="rounded-xl border border-gray-700 bg-black px-4 py-2.5 text-sm text-white outline-none focus:border-yellow-400"
+              >
+                {listBulan.map((bulan) => (
+                  <option key={bulan.value} value={bulan.value}>
+                    {bulan.label}
+                  </option>
+                ))}
+              </select>
+
+              {/* Filter Status */}
               <select
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value)}
@@ -173,6 +212,7 @@ export default function AdminPesananPage() {
                 onClick={() => {
                   setSearch("");
                   setStatusFilter("all");
+                  setBulanFilter("all");
                 }}
                 className="rounded-xl border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition hover:border-yellow-400 hover:text-yellow-400"
               >
@@ -193,7 +233,7 @@ export default function AdminPesananPage() {
                 Tidak ada pesanan yang cocok
               </p>
               <p className="mt-2 text-sm">
-                Coba ubah pencarian atau filter status.
+                Coba ubah pencarian, filter status, atau filter bulan.
               </p>
             </div>
           ) : (

@@ -61,14 +61,14 @@ function DateEditPanel({
           type="button"
           disabled={days <= 0}
           onClick={() => onSave(localAmbil, localKembali)}
-          className="rounded-full bg-yellow-400 px-5 py-2 text-sm font-semibold text-black disabled:opacity-40 disabled:cursor-not-allowed hover:bg-yellow-300 transition"
+          className="min-h-11 rounded-full bg-yellow-400 px-5 py-2 text-sm font-semibold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Simpan Tanggal
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="text-sm text-zinc-500 hover:text-zinc-300 transition"
+          className="min-h-10 px-3 text-sm text-zinc-500 transition hover:text-zinc-300"
         >
           Batal
         </button>
@@ -361,12 +361,12 @@ function SewaContent() {
 
   // ── Render ────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
+    <div className="flex min-h-screen flex-col overflow-x-hidden bg-zinc-950 text-white">
       <Navbar namaToko={pengaturan.nama_toko} activeHref="/sewa" />
 
       {/* PAGE HEADER */}
       <section className="border-b border-zinc-900 bg-zinc-900/40">
-        <div className="mx-auto max-w-5xl px-6 py-10">
+        <div className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-6 sm:py-10">
           <p className="text-xs font-bold uppercase tracking-[0.3em] text-yellow-400">
             Pemesanan
           </p>
@@ -380,7 +380,7 @@ function SewaContent() {
 
       {/* BREADCRUMB PROGRESS */}
       <div className="border-b border-zinc-900">
-        <div className="mx-auto flex max-w-5xl items-center gap-0 px-6 py-3 text-xs">
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-y-1 px-5 py-3 text-xs sm:px-6">
           <Link
             href="/kamera"
             className="text-zinc-500 hover:text-yellow-400 transition"
@@ -399,11 +399,11 @@ function SewaContent() {
       {/* FORM BODY */}
       <section className="flex-1">
         <form onSubmit={handleSubmit}>
-          <div className="mx-auto grid max-w-5xl gap-8 px-6 py-10 lg:grid-cols-3">
+          <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-5 px-4 py-6 sm:gap-8 sm:px-6 sm:py-10 lg:grid-cols-3">
             {/* ── LEFT — review sections + customer form ──── */}
-            <div className="space-y-6 lg:col-span-2">
+            <div className="min-w-0 space-y-5 sm:space-y-6 lg:col-span-2">
               {/* ─ SECTION 1: Camera selection ─ */}
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 md:p-7">
+              <div className="min-w-0 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-6 md:p-7">
                 <div className="flex items-center justify-between">
                   <h2 className="text-base font-bold">Kamera yang Dipilih</h2>
                   <Link
@@ -421,7 +421,7 @@ function SewaContent() {
                   </div>
                 ) : kameraTerpilih ? (
                   /* ─ Camera is already selected (happy path) ─ */
-                  <div className="mt-4 flex gap-4">
+                  <div className="mt-4 flex min-w-0 items-start gap-3 sm:gap-4">
                     {kameraTerpilih.gambar_url ? (
                       <img
                         src={kameraTerpilih.gambar_url}
@@ -488,21 +488,55 @@ function SewaContent() {
                     <label className="mb-1.5 block text-sm font-medium">
                       Jumlah Kamera
                     </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={stokMaksimalPeriode}
-                      value={jumlahEfektif}
-                      onChange={(e) =>
-                        setJumlah(
-                          Math.min(
-                            stokMaksimalPeriode ?? kameraTerpilih.stok,
-                            Math.max(1, Number(e.target.value)),
-                          ),
-                        )
-                      }
-                      className={`${inputClass} max-w-[120px]`}
-                    />
+                    <div className="flex w-full max-w-xs items-stretch gap-2 sm:gap-3">
+                      <button
+                        type="button"
+                        aria-label="Kurangi jumlah kamera"
+                        onClick={() => setJumlah(Math.max(1, jumlahEfektif - 1))}
+                        disabled={jumlahEfektif <= 1}
+                        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-950 text-2xl font-semibold text-white transition hover:border-yellow-400 hover:text-yellow-400 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        −
+                      </button>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        aria-label="Jumlah kamera"
+                        min={1}
+                        max={stokMaksimalPeriode ?? kameraTerpilih.stok}
+                        step={1}
+                        value={jumlahEfektif}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === "") return;
+                          const parsed = Number(value);
+                          if (!Number.isFinite(parsed)) return;
+                          setJumlah(
+                            Math.min(
+                              stokMaksimalPeriode ?? kameraTerpilih.stok,
+                              Math.max(1, Math.floor(parsed)),
+                            ),
+                          );
+                        }}
+                        className={`${inputClass} h-12 min-w-0 flex-1 text-center text-base font-semibold [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+                      />
+                      <button
+                        type="button"
+                        aria-label="Tambah jumlah kamera"
+                        onClick={() =>
+                          setJumlah(
+                            Math.min(
+                              stokMaksimalPeriode ?? kameraTerpilih.stok,
+                              jumlahEfektif + 1,
+                            ),
+                          )
+                        }
+                        disabled={jumlahEfektif >= (stokMaksimalPeriode ?? kameraTerpilih.stok)}
+                        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-950 text-2xl font-semibold text-white transition hover:border-yellow-400 hover:text-yellow-400 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        +
+                      </button>
+                    </div>
                     <p className="mt-1.5 text-xs text-zinc-500">
                       Maksimal {stokMaksimalPeriode ?? kameraTerpilih.stok} unit
                       {stokStatus.status === "available"
@@ -514,7 +548,7 @@ function SewaContent() {
               </div>
 
               {/* ─ SECTION 2: Dates ─ */}
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 md:p-7">
+              <div className="min-w-0 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-6 md:p-7">
                 <div className="flex items-center justify-between">
                   <h2 className="text-base font-bold">Periode Sewa</h2>
                   {!editingDates && (
@@ -593,7 +627,7 @@ function SewaContent() {
               </div>
 
               {/* ─ SECTION 3: Customer data ─ */}
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 md:p-7">
+              <div className="min-w-0 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-6 md:p-7">
                 <h2 className="text-base font-bold">Data Penyewa</h2>
 
                 <div className="mt-5 space-y-5">
@@ -652,7 +686,7 @@ function SewaContent() {
 
             {/* ── RIGHT — order summary + submit ──────────── */}
             <div>
-              <div className="sticky top-24 rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-6 lg:sticky lg:top-24">
                 <h2 className="text-lg font-bold">Ringkasan Pesanan</h2>
 
                 {/* Camera preview thumbnail */}
@@ -670,33 +704,33 @@ function SewaContent() {
 
                 {/* Summary rows */}
                 <div className="mt-5 space-y-2.5 text-sm">
-                  <div className="flex justify-between gap-2">
+                  <div className="flex min-w-0 justify-between gap-3">
                     <span className="text-zinc-500">Penyewa</span>
-                    <span className="text-right">{nama || "—"}</span>
+                    <span className="min-w-0 max-w-[65%] break-words text-right">{nama || "—"}</span>
                   </div>
-                  <div className="flex justify-between gap-2">
+                  <div className="flex min-w-0 justify-between gap-3">
                     <span className="text-zinc-500">Kamera</span>
-                    <span className="text-right font-medium">
+                    <span className="min-w-0 max-w-[65%] break-words text-right font-medium">
                       {kameraTerpilih
                         ? `${kameraTerpilih.brand} ${kameraTerpilih.nama}`
                         : "—"}
                     </span>
                   </div>
                   {jumlahEfektif > 1 && (
-                    <div className="flex justify-between gap-2">
+                    <div className="flex min-w-0 justify-between gap-3">
                       <span className="text-zinc-500">Jumlah</span>
                       <span>{jumlahEfektif} unit</span>
                     </div>
                   )}
-                  <div className="flex justify-between gap-2">
+                  <div className="flex min-w-0 justify-between gap-3">
                     <span className="text-zinc-500">Periode</span>
-                    <span className="text-right">
+                    <span className="min-w-0 max-w-[65%] break-words text-right">
                       {tanggalAmbil && tanggalKembali
                         ? `${formatTanggal(tanggalAmbil)} – ${formatTanggal(tanggalKembali)}`
                         : "—"}
                     </span>
                   </div>
-                  <div className="flex justify-between gap-2">
+                  <div className="flex min-w-0 justify-between gap-3">
                     <span className="text-zinc-500">Durasi</span>
                     <span>{jumlahHari > 0 ? `${jumlahHari} hari` : "—"}</span>
                   </div>
@@ -750,7 +784,7 @@ function SewaContent() {
 
                   <div className="border-t border-zinc-800 pt-3 flex items-end justify-between gap-2">
                     <span className="font-bold">Total</span>
-                    <span className="text-2xl font-bold text-yellow-400">
+                    <span className="break-words text-right text-xl font-bold text-yellow-400 sm:text-2xl">
                       {jumlahHari > 0 && hargaPerHari > 0
                         ? formatRupiah(totalHarga)
                         : "—"}
