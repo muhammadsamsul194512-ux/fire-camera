@@ -511,6 +511,29 @@ export default function KameraPage() {
             )}
           </>
         )}
+
+        {/* TERM & CONDITION SECTION */}
+        <section className="mt-16 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 sm:p-8">
+          <h2 className="text-xl font-bold text-yellow-400 sm:text-2xl">Term &amp; Condition</h2>
+          <p className="mt-1 text-sm text-zinc-400">
+            Mohon baca ketentuan berikut sebelum melakukan penyewaan.
+          </p>
+
+          <ol className="mt-6 space-y-3 text-sm text-zinc-300 list-decimal list-inside leading-relaxed">
+            <li>
+              <span className="font-semibold text-white">Bertanggung jawab sepenuhnya pada digicam saat sewa.</span> Segala kerusakan/kehilangan pada kamera, tanggung jawab sepenuhnya customer.
+            </li>
+            <li>
+              Toleransi keterlambatan pengembalian 10 menit, jika lebih dari itu dikenakan biaya 10k/jam.
+            </li>
+            <li>
+              Kondisi dan kelengkapan wajib dicek saat serah terima.
+            </li>
+            <li>
+              <span className="font-bold text-red-400">NO REFUND</span> jika ada kesalahan dari customer atau cancel booking dadakan.
+            </li>
+          </ol>
+        </section>
       </section>
 
       <Footer namaToko={pengaturan.nama_toko} whatsapp={pengaturan.whatsapp} />

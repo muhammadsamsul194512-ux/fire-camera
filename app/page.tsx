@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -28,26 +29,39 @@ const langkahSewa = [
   },
 ];
 
-const keunggulan = [
+const dosList = [
+  "Pahami tutorial yang diberikan (jika belum paham).",
+  "Simpan kamera di tempat yang tidak lembab, kering, dan sejuk.",
+  "Pasang/lepas memori & baterai dengan hati-hati.",
+  "Boleh bertanya kepada admin jika belum paham.",
+];
+
+const dontsList = [
+  "Jika kamera tidak dipakai, dimatikan terlebih dahulu.",
+  "Jangan sampai kamera terbentur/tergores.",
+  "Charger kamera sebelum mati, selalu re-check baterai kamera.",
+  "Jika ingin membersihkan lensa, pakai kain halus/tisu. Jangan menggunakan bahan yang kasar/jari tangan.",
+];
+
+const faqList = [
   {
-    icon: "⚡",
-    title: "Proses Mudah",
-    text: "Pesan kamera dengan proses sederhana dan jelas.",
+    q: "Nanti dapet apa aja ya kak?",
+    a: "Sesuai kelengkapan camera yaa. Camera, Memori Card, Baterai, Charger, Card Reader, Strap & Pouch",
   },
   {
-    icon: "💰",
-    title: "Harga Terjangkau",
-    text: "Harga sewa mulai dari Rp50.000 per kamera per hari.",
-  },
-  {
-    icon: "🛡️",
-    title: "Stok Terjamin",
-    text: "Sistem memeriksa ketersediaan kamera sebelum pemesanan.",
+    q: "Bisa gosend ga kak?",
+    a: "Tidak bisa yaa, wajib pick up karena akan cek identitas terlebih dahulu & pengecekan camera",
   },
 ];
 
 export default function Home() {
   const pengaturan = usePengaturan();
+  // State untuk menyimpan indeks FAQ yang sedang terbuka (default terbuka nomor 0)
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
+
+  const toggleFaq = (index: number) => {
+    setOpenFaq(openFaq === index ? null : index);
+  };
 
   return (
     <div className="flex min-h-screen flex-col overflow-x-hidden bg-zinc-950 text-white">
@@ -71,7 +85,7 @@ export default function Home() {
 
             <p className="mt-5 max-w-xl text-base leading-7 text-zinc-400 sm:mt-6 sm:text-lg sm:leading-8">
               Abadikan setiap momen spesialmu bersama{" "}
-              {pengaturan.nama_toko || "kami"}. Pilih kamera yang kamu butuhkan
+              {pengaturan.nama_toko || "Snapiecam"}. Pilih kamera yang kamu butuhkan
               dan pesan dengan mudah.
             </p>
 
@@ -96,7 +110,7 @@ export default function Home() {
             <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-4 sm:mt-10 sm:gap-8">
               <div>
                 <p className="text-xl font-bold sm:text-2xl">Harga</p>
-                <p className="mt-1 text-sm text-zinc-500">Mulai dari 50K</p>
+                <p className="mt-1 text-sm text-zinc-500">Mulai dari 60K</p>
               </div>
 
               <div className="hidden h-10 w-px bg-zinc-800 sm:block" />
@@ -118,7 +132,7 @@ export default function Home() {
               {pengaturan.gambar_hero_url ? (
                 <img
                   src={pengaturan.gambar_hero_url}
-                  alt={`Hero ${pengaturan.nama_toko || "Fire Camera"}`}
+                  alt={`Hero ${pengaturan.nama_toko || "Snapiecam"}`}
                   className="h-full w-full object-cover"
                 />
               ) : (
@@ -128,7 +142,7 @@ export default function Home() {
                       📷
                     </div>
                     <p className="text-base font-semibold text-zinc-400">
-                      {pengaturan.nama_toko || "Fire Camera"}
+                      {pengaturan.nama_toko || "Snapiecam"}
                     </p>
                     <p className="mt-1 text-xs text-zinc-600">
                       Rental Kamera Profesional
@@ -136,6 +150,38 @@ export default function Home() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ABOUT SNAPIECAM */}
+      <section className="border-t border-zinc-900 bg-zinc-950">
+        <div className="mx-auto max-w-7xl px-5 py-8 sm:px-6">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 md:gap-8">
+            {/* Bagian Kiri: Gambar about-us.png */}
+            <div className="flex-shrink-0 flex items-center justify-center w-full md:w-auto">
+              <img
+                src="/about-us.png"
+                alt="About Snapiecam Camera"
+                className="max-h-36 sm:max-h-44 w-auto object-contain rounded-xl"
+              />
+            </div>
+
+            {/* Garis Pemisah (Desktop only) */}
+            <div className="hidden md:block h-32 w-px bg-zinc-800" />
+
+            {/* Bagian Kanan: Judul & Teks About */}
+            <div className="flex-1 text-center md:text-left">
+              <h2 className="text-xl font-bold text-white sm:text-2xl">
+                About <span className="text-yellow-400">{pengaturan.nama_toko || "Snapiecam"}</span>
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-zinc-400 sm:text-base">
+                Welcome to your premier destination for digital camera rentals. We believe that
+                every celebration deserves a unique perspective, we help you turn ordinary shots
+                into timeless keepsakes, Explore our collection, book your favorite unit, and start
+                documenting your story with the authentic texture of the digital era.
+              </p>
             </div>
           </div>
         </div>
@@ -182,25 +228,115 @@ export default function Home() {
         </div>
       </section>
 
-      {/* KEUNGGULAN */}
-      <section className="border-t border-zinc-900 bg-zinc-900/40">
+      {/* DOS & DON'TS */}
+      <section className="border-t border-zinc-900 bg-zinc-950">
         <div className="mx-auto max-w-7xl px-5 py-14 sm:px-6 sm:py-20">
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 md:grid-cols-3 md:gap-10">
-            {keunggulan.map((item) => (
-              <div key={item.title} className="min-w-0">
-                <div className="text-3xl" aria-hidden="true">
-                  {item.icon}
-                </div>
+          <div className="text-center">
+            <p className="text-xs font-semibold uppercase tracking-widest text-yellow-400 sm:text-sm">
+              Panduan Penggunaan
+            </p>
 
-                <h3 className="mt-4 text-lg font-semibold sm:text-xl">
-                  {item.title}
-                </h3>
+            <h2 className="mt-2 text-2xl font-bold sm:text-3xl md:text-4xl">
+              Dos &amp; Don'ts
+            </h2>
 
-                <p className="mt-2 text-sm leading-6 text-zinc-500">
-                  {item.text}
-                </p>
+            <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-zinc-500 sm:text-base sm:leading-7">
+              Agar pengalaman sewa kamera di {pengaturan.nama_toko || "Snapiecam"} lebih aman dan nyaman, perhatikan beberapa hal berikut:
+            </p>
+          </div>
+
+          <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-2">
+            {/* DOS */}
+            <div className="rounded-2xl border border-emerald-900/40 bg-[#122218] p-6 sm:p-8">
+              <div className="flex items-center gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-sm font-bold text-black">
+                  ✓
+                </span>
+                <h3 className="text-xl font-bold text-emerald-400">Dos</h3>
               </div>
-            ))}
+
+              <ul className="mt-6 space-y-4 text-sm text-emerald-100/90">
+                {dosList.map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-3">
+                    <span className="mt-0.5 text-emerald-400 font-bold">✔</span>
+                    <span className="leading-relaxed">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* DON'TS */}
+            <div className="rounded-2xl border border-rose-900/40 bg-[#2b1619] p-6 sm:p-8">
+              <div className="flex items-center gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-500 text-sm font-bold text-white">
+                  ✕
+                </span>
+                <h3 className="text-xl font-bold text-rose-400">Don'ts</h3>
+              </div>
+
+              <ul className="mt-6 space-y-4 text-sm text-rose-100/90">
+                {dontsList.map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-3">
+                    <span className="mt-0.5 text-rose-400 font-bold">✖</span>
+                    <span className="leading-relaxed">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ INTERAKTIF (ACCORDION) */}
+      <section className="border-t border-zinc-900 bg-zinc-950">
+        <div className="mx-auto max-w-4xl px-5 py-14 sm:px-6 sm:py-20">
+          <div className="text-center">
+            <p className="text-xs font-semibold uppercase tracking-widest text-yellow-400 sm:text-sm">
+              FAQ
+            </p>
+
+            <h2 className="mt-2 text-2xl font-bold sm:text-3xl md:text-4xl">
+              Q &amp; A—Pertanyaan yang Sering Ditanyakan
+            </h2>
+          </div>
+
+          <div className="mt-10 space-y-4">
+            {faqList.map((faq, index) => {
+              const isOpen = openFaq === index;
+              return (
+                <div
+                  key={index}
+                  className={`overflow-hidden rounded-2xl border transition-all ${
+                    isOpen
+                      ? "border-yellow-500/50 bg-yellow-950/20"
+                      : "border-zinc-800 bg-zinc-900/50 hover:border-zinc-700"
+                  }`}
+                >
+                  {/* Tombol Pertanyaan (Q) */}
+                  <button
+                    onClick={() => toggleFaq(index)}
+                    className="flex w-full items-center justify-between p-5 text-left transition-colors sm:p-6"
+                  >
+                    <span className="text-base font-bold text-white sm:text-lg">
+                      Q : {faq.q}
+                    </span>
+                    <span className="ml-4 flex h-7 w-7 items-center justify-center rounded-full bg-zinc-800 text-yellow-400 font-bold text-sm">
+                      {isOpen ? "▲" : "▼"}
+                    </span>
+                  </button>
+
+                  {/* Jawaban (A) - Tampil Saat Diklik */}
+                  {isOpen && (
+                    <div className="border-t border-yellow-500/20 bg-yellow-900/10 p-5 sm:p-6 pt-4">
+                      <p className="text-sm leading-relaxed text-zinc-300 sm:text-base">
+                        <span className="font-bold text-yellow-400">A : </span>
+                        {faq.a}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>

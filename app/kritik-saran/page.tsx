@@ -47,7 +47,7 @@ export default function KritikSaranPage() {
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-yellow-400">
             FIRE CAMERA
           </p>
-          <h1 className="mt-2 text-3xl font-bold md:text-4xl">Kritik & Saran</h1>
+          <h1 className="mt-2 text-3xl font-bold md:text-4xl">Kritik &amp; Saran</h1>
           <p className="mt-2 text-sm text-gray-400">
             Masukan Anda sangat berharga bagi kami. Tuliskan kritik atau saran Anda untuk membantu meningkatkan layanan kami.
           </p>
@@ -82,14 +82,14 @@ export default function KritikSaranPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Nomor WhatsApp / Email
+              Nomor WhatsApp
             </label>
             <input
               type="text"
               required
               value={kontak}
               onChange={(e) => setKontak(e.target.value)}
-              placeholder="Contoh: 08123456789 / email@example.com"
+              placeholder="Contoh: 08123456789"
               className="w-full rounded-xl border border-gray-700 bg-black px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none focus:border-yellow-400"
             />
           </div>
