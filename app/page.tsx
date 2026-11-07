@@ -187,7 +187,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CARA SEWA */}
+      {/* CARA SEWA (4 Kolom Menyamping) */}
       <section id="cara-sewa" className="border-t border-zinc-900">
         <div className="mx-auto max-w-7xl px-5 py-14 sm:px-6 sm:py-20">
           <div className="text-center">
@@ -205,7 +205,7 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="mt-10 grid grid-cols-1 gap-4 sm:mt-14 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
+          <div className="mt-10 grid grid-cols-1 gap-4 sm:mt-14 sm:grid-cols-2 md:grid-cols-4 sm:gap-6">
             {langkahSewa.map((step) => (
               <div
                 key={step.number}
@@ -287,7 +287,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* FAQ INTERAKTIF (ACCORDION) */}
+      {/* FAQ */}
       <section className="border-t border-zinc-900 bg-zinc-950">
         <div className="mx-auto max-w-4xl px-5 py-14 sm:px-6 sm:py-20">
           <div className="text-center">
