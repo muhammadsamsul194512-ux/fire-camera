@@ -9,6 +9,7 @@ import StatusBadge from "@/components/StatusBadge";
 import { PaymentCountdown } from "@/components/PaymentCountdown";
 import { usePengaturan } from "@/hooks/usePengaturan";
 import { formatRupiah } from "@/lib/utils";
+import { notify } from "@/lib/notifications";
 
 type PaymentData = {
   id: number;
@@ -48,6 +49,33 @@ type OrderData = {
   }>;
   payment: PaymentData | null;
 };
+
+async function copyToClipboard(value: string) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return;
+    }
+  } catch {
+    // Permission failures can still be handled by the legacy browser fallback.
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+
+  try {
+    textarea.select();
+    if (!document.execCommand("copy")) {
+      throw new Error("Clipboard copy command was rejected.");
+    }
+  } finally {
+    textarea.remove();
+  }
+}
 
 function PembayaranDetailContent() {
   const params = useParams<{ id: string }>();
@@ -308,32 +336,70 @@ function PembayaranDetailContent() {
   }
 
   const nomorPesanan = order?.nomor_pesanan ?? "";
+  const nomorRekening = pengaturan.nomor_rekening || "";
+  const nomorRekeningUntukDisalin = nomorRekening.replace(/\D/g, "");
+
+  async function salinTeks(value: string, label: string) {
+    try {
+      await copyToClipboard(value);
+      notify.success(`${label} berhasil disalin`);
+    } catch {
+      notify.error(
+        `Gagal menyalin ${label.toLowerCase()}`,
+        "Silakan salin informasi tersebut secara manual.",
+      );
+    }
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
       <Navbar namaToko={pengaturan.nama_toko} />
 
       <section className="border-b border-zinc-900 bg-zinc-900/40">
-        <div className="mx-auto max-w-4xl px-6 py-12">
+        <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-yellow-400">
             Pembayaran
           </p>
-          <h1 className="mt-2 text-4xl font-bold">Selesaikan Pembayaran</h1>
+          <h1 className="mt-2 text-3xl font-bold sm:text-4xl">Selesaikan Pembayaran</h1>
           <p className="mt-3 text-zinc-400">
             Transfer ke rekening di bawah, lalu upload bukti pembayaran.
           </p>
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
+      <section className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6 sm:py-12">
         <div className="grid gap-6 md:grid-cols-2">
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-6">
             <h2 className="text-lg font-bold">Detail Pesanan</h2>
 
             <div className="mt-5 space-y-5">
               <div>
                 <p className="text-xs text-zinc-500">Nomor Pesanan</p>
-                <p className="mt-1 font-bold text-lg">{nomorPesanan}</p>
+                <div className="mt-1 flex items-center justify-between gap-3">
+                  <p className="min-w-0 break-all text-lg font-bold">
+                    {nomorPesanan}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => salinTeks(nomorPesanan, "Nomor pesanan")}
+                    disabled={!nomorPesanan}
+                    aria-label="Salin nomor pesanan"
+                    className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-zinc-700 px-3 text-sm font-semibold text-zinc-200 transition hover:border-yellow-400 hover:text-yellow-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.8}
+                    >
+                      <rect x="9" y="9" width="13" height="13" rx="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                    Salin
+                  </button>
+                </div>
               </div>
 
               <div className="border-t border-zinc-800 pt-5">
@@ -400,7 +466,7 @@ function PembayaranDetailContent() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-6">
             <h2 className="text-lg font-bold">Transfer Bank</h2>
 
             {sudahKedaluwarsa && (
@@ -466,9 +532,33 @@ function PembayaranDetailContent() {
               </div>
               <div>
                 <p className="text-xs text-zinc-400">Nomor Rekening</p>
-                <p className="mt-0.5 text-2xl font-bold tracking-wider">
-                  {pengaturan.nomor_rekening || "—"}
-                </p>
+                <div className="mt-1 flex items-center justify-between gap-3">
+                  <p className="min-w-0 break-all text-xl font-bold tracking-wider sm:text-2xl">
+                    {nomorRekening || "—"}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      salinTeks(nomorRekeningUntukDisalin, "Nomor rekening")
+                    }
+                    disabled={!nomorRekeningUntukDisalin}
+                    aria-label="Salin nomor rekening"
+                    className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-zinc-700 px-3 text-sm font-semibold text-zinc-200 transition hover:border-yellow-400 hover:text-yellow-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      className="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={1.8}
+                    >
+                      <rect x="9" y="9" width="13" height="13" rx="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                    Salin
+                  </button>
+                </div>
               </div>
               <div>
                 <p className="text-xs text-zinc-400">Atas Nama</p>
