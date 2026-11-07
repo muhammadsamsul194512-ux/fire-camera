@@ -180,7 +180,7 @@ export default function KameraPage() {
 
       {/* PAGE HEADER */}
       <section className="border-b border-zinc-900 bg-zinc-900/40">
-        <div className="mx-auto max-w-6xl px-6 py-12">
+        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
           <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-yellow-400">
             Koleksi Kamera
           </p>
@@ -194,7 +194,7 @@ export default function KameraPage() {
 
       {/* DATE PICKER */}
       <section className="border-b border-zinc-900 bg-zinc-950">
-        <div className="mx-auto max-w-6xl px-6 py-6">
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
           <RentalDatePicker
             tanggalAmbil={tanggalAmbil}
             tanggalKembali={tanggalKembali}
@@ -218,7 +218,7 @@ export default function KameraPage() {
       </section>
 
       {/* MAIN CONTENT */}
-      <section className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
+      <section className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
         {/* Loading cameras */}
         {loadingCameras && (
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-10 text-center">
@@ -325,7 +325,7 @@ export default function KameraPage() {
 
             {/* Available cameras */}
             {camerasAvailable.length > 0 && (
-              <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-2 gap-3 sm:gap-5 md:grid-cols-2 lg:grid-cols-3">
                 {camerasAvailable.map((camera) => {
                   const stok = getStok(camera);
                   const isChecked = stokState.status === "done";
@@ -340,7 +340,7 @@ export default function KameraPage() {
                     >
                       {/* Image */}
                       <Link href={buildDetailUrl(camera)}>
-                        <div className="h-48 overflow-hidden bg-zinc-800">
+                        <div className="aspect-[4/3] overflow-hidden bg-zinc-800 sm:aspect-auto sm:h-48">
                           {camera.gambar_url ? (
                             <img
                               src={camera.gambar_url}
@@ -355,36 +355,36 @@ export default function KameraPage() {
                         </div>
                       </Link>
 
-                      <div className="flex flex-1 flex-col p-5">
+                      <div className="flex flex-1 flex-col p-3 sm:p-5">
                         {/* Brand + name */}
-                        <p className="text-xs font-semibold uppercase tracking-wider text-yellow-400">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-yellow-400 sm:text-xs">
                           {camera.brand}
                         </p>
                         <Link href={buildDetailUrl(camera)}>
-                          <h2 className="mt-1 text-xl font-bold hover:text-yellow-400 transition">
+                          <h2 className="mt-1 min-h-12 line-clamp-2 text-base font-bold leading-6 hover:text-yellow-400 transition sm:text-xl">
                             {camera.nama}
                           </h2>
                         </Link>
 
                         {camera.deskripsi && (
-                          <p className="mt-2 line-clamp-2 text-sm text-zinc-400 flex-1">
+                          <p className="mt-2 min-h-9 line-clamp-2 text-xs text-zinc-400 sm:text-sm">
                             {camera.deskripsi}
                           </p>
                         )}
 
                         {/* Price + availability */}
-                        <div className="mt-4 flex items-end justify-between gap-2">
+                        <div className="mt-auto flex flex-col items-start justify-between gap-2 pt-4 sm:flex-row sm:items-end">
                           <div>
-                            <p className="text-xs text-zinc-500">Harga sewa</p>
-                            <p className="font-semibold text-yellow-400">
+                            <p className="text-[10px] text-zinc-500 sm:text-xs">Harga sewa</p>
+                            <p className="text-sm font-semibold text-yellow-400 sm:text-base">
                               {formatRupiah(camera.harga_per_hari)}
-                              <span className="text-xs text-zinc-500">
+                              <span className="text-[10px] text-zinc-500 sm:text-xs">
                                 {" "}
                                 / hari
                               </span>
                             </p>
                             {total !== null && (
-                              <p className="mt-0.5 text-xs text-zinc-400">
+                              <p className="mt-0.5 text-[10px] text-zinc-400 sm:text-xs">
                                 Estimasi {jumlahHari} hari:{" "}
                                 <span className="font-semibold text-white">
                                   {formatRupiah(total)}
@@ -393,23 +393,23 @@ export default function KameraPage() {
                             )}
                           </div>
 
-                          <div className="text-right">
+                          <div className="max-w-full">
                             {isChecked ? (
                               stok <= 0 ? (
-                                <span className="rounded-full bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-400">
+                                <span className="inline-block max-w-full rounded-full bg-red-500/10 px-2 py-1 text-[10px] font-semibold leading-4 text-red-400 sm:px-3 sm:text-xs">
                                   Habis
                                 </span>
                               ) : stok <= 2 ? (
-                                <span className="rounded-full bg-yellow-500/10 px-3 py-1 text-xs font-semibold text-yellow-400">
+                                <span className="inline-block max-w-full rounded-full bg-yellow-500/10 px-2 py-1 text-[10px] font-semibold leading-4 text-yellow-400 sm:px-3 sm:text-xs">
                                   Tersisa {stok}
                                 </span>
                               ) : (
-                                <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-400">
+                                <span className="inline-block max-w-full rounded-full bg-green-500/10 px-2 py-1 text-[10px] font-semibold leading-4 text-green-400 sm:px-3 sm:text-xs">
                                   ✓ {stok} unit tersedia
                                 </span>
                               )
                             ) : (
-                              <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs font-semibold text-zinc-400">
+                              <span className="inline-block max-w-full rounded-full bg-zinc-800 px-2 py-1 text-[10px] font-semibold leading-4 text-zinc-400 sm:px-3 sm:text-xs">
                                 Stok total {camera.stok} unit
                               </span>
                             )}
@@ -417,7 +417,7 @@ export default function KameraPage() {
                         </div>
 
                         {/* CTA */}
-                        <div className="mt-4 flex gap-2">
+                        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                           <Link
                             href={canBook ? buildSewaUrl() : "#"}
                             onClick={(e) => {
@@ -428,7 +428,7 @@ export default function KameraPage() {
                               setSelectedBooking(camera);
                             }}
                             aria-disabled={!canBook}
-                            className={`flex-1 rounded-xl px-4 py-2.5 text-center text-sm font-semibold transition ${
+                            className={`flex min-h-11 flex-1 items-center justify-center rounded-xl px-2 py-2.5 text-center text-xs font-semibold transition sm:px-4 sm:text-sm ${
                               canBook
                                 ? "bg-yellow-400 text-black hover:bg-yellow-300"
                                 : "pointer-events-none cursor-not-allowed bg-zinc-800 text-zinc-500"
@@ -444,7 +444,7 @@ export default function KameraPage() {
                           </Link>
                           <Link
                             href={buildDetailUrl(camera)}
-                            className="rounded-xl border border-zinc-700 px-4 py-2.5 text-sm font-semibold text-zinc-300 transition hover:border-yellow-400 hover:text-yellow-400"
+                            className="flex min-h-11 items-center justify-center rounded-xl border border-zinc-700 px-4 py-2.5 text-xs font-semibold text-zinc-300 transition hover:border-yellow-400 hover:text-yellow-400 sm:text-sm"
                           >
                             Detail
                           </Link>
@@ -468,13 +468,13 @@ export default function KameraPage() {
                   <div className="h-px flex-1 bg-zinc-800" />
                 </div>
 
-                <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-2 gap-3 sm:gap-5 md:grid-cols-2 lg:grid-cols-3">
                   {camerasUnavailable.map((camera) => (
                     <article
                       key={camera.id}
                       className="flex flex-col overflow-hidden rounded-2xl border border-zinc-800/50 bg-zinc-900/40 opacity-50"
                     >
-                      <div className="h-40 overflow-hidden bg-zinc-800/50">
+                      <div className="aspect-[4/3] overflow-hidden bg-zinc-800/50 sm:aspect-auto sm:h-40">
                         {camera.gambar_url ? (
                           <img
                             src={camera.gambar_url}
@@ -487,19 +487,19 @@ export default function KameraPage() {
                           </div>
                         )}
                       </div>
-                      <div className="p-4">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600">
+                      <div className="p-3 sm:p-4">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 sm:text-xs">
                           {camera.brand}
                         </p>
-                        <h2 className="mt-0.5 text-base font-bold text-zinc-500">
+                        <h2 className="mt-0.5 min-h-12 line-clamp-2 text-sm font-bold leading-6 text-zinc-500 sm:text-base">
                           {camera.nama}
                         </h2>
-                        <div className="mt-3 flex items-center justify-between gap-2">
-                          <p className="text-xs text-zinc-600">
+                        <div className="mt-3 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="min-w-0 text-[10px] text-zinc-600 sm:text-xs">
                             {formatRupiah(camera.harga_per_hari)}
                             <span> / hari</span>
                           </p>
-                          <span className="rounded-full bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-zinc-500">
+                          <span className="max-w-full rounded-full bg-zinc-800 px-2 py-1 text-[10px] font-semibold leading-4 text-zinc-500 sm:px-2.5 sm:text-xs">
                             Tidak tersedia
                           </span>
                         </div>

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -47,6 +47,7 @@ type StokStatus =
 
 export default function KameraDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const pengaturan = usePengaturan();
   const setBooking = useBookingStore((state) => state.setBooking);
@@ -58,6 +59,10 @@ export default function KameraDetailPage() {
   const [loadingPhotos, setLoadingPhotos] = useState(false);
   const [errorCamera, setErrorCamera] = useState("");
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [descriptionHeight, setDescriptionHeight] = useState(0);
+  const [hasLongDescription, setHasLongDescription] = useState(false);
+  const descriptionRef = useRef<HTMLParagraphElement>(null);
 
   const [tanggalAmbil, setTanggalAmbil] = useState(
     searchParams.get("tanggalAmbil") || "",
@@ -70,6 +75,35 @@ export default function KameraDetailPage() {
 
   const [stokStatus, setStokStatus] = useState<StokStatus>({ status: "idle" });
   const [retryKey, setRetryKey] = useState(0);
+
+  useEffect(() => {
+    const description = descriptionRef.current;
+    if (!description) return;
+
+    function measureDescription(node: HTMLParagraphElement) {
+      const lineHeight = Number.parseFloat(
+        window.getComputedStyle(node).lineHeight,
+      );
+      setDescriptionHeight(node.scrollHeight);
+      setHasLongDescription(
+        window.innerWidth < 768 &&
+          Number.isFinite(lineHeight) &&
+          node.scrollHeight > lineHeight * 4 + 1,
+      );
+    }
+
+    measureDescription(description);
+    const observer = new ResizeObserver(() =>
+      measureDescription(description),
+    );
+    observer.observe(description);
+    const handleResize = () => measureDescription(description);
+    window.addEventListener("resize", handleResize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [camera?.deskripsi]);
 
   // ── Load camera ──────────────────────────────────────────────
   useEffect(() => {
@@ -237,6 +271,23 @@ export default function KameraDetailPage() {
         {/* ── Content ─────────────────────────────────────── */}
         {!loadingCamera && camera && (
           <>
+            <div className="mx-auto max-w-5xl px-4 pt-4 sm:px-6 sm:pt-7">
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.history.length > 1) {
+                    router.back();
+                  } else {
+                    router.push("/kamera");
+                  }
+                }}
+                className="inline-flex min-h-11 items-center gap-2 rounded-full border border-zinc-800 px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:border-yellow-400 hover:text-yellow-400"
+              >
+                <span aria-hidden="true">←</span>
+                Kembali
+              </button>
+            </div>
+
             {/* ── HERO BANNER ─────────────────────────────── */}
             <div className="relative w-full overflow-hidden border-b border-zinc-800 bg-zinc-900">
               {camera.gambar_url ? (
@@ -252,7 +303,7 @@ export default function KameraDetailPage() {
                     }}
                   />
                   {/* sharp centred image */}
-                  <div className="relative mx-auto flex max-w-5xl items-center justify-center px-6 py-10">
+                  <div className="relative mx-auto flex max-w-5xl items-center justify-center px-4 py-6 sm:px-6 sm:py-10">
                     <img
                       src={camera.gambar_url}
                       alt={`${camera.brand} ${camera.nama}`}
@@ -267,20 +318,10 @@ export default function KameraDetailPage() {
               )}
             </div>
 
-            {/* ── BACK LINK ───────────────────────────────── */}
-            <div className="mx-auto max-w-5xl px-6 pt-7">
-              <Link
-                href="/kamera"
-                className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-yellow-400 transition"
-              >
-                ← Kembali ke Daftar Kamera
-              </Link>
-            </div>
-
             {/* ── MAIN GRID ───────────────────────────────── */}
-            <div className="mx-auto grid max-w-5xl gap-10 px-6 py-8 lg:grid-cols-5">
+            <div className="mx-auto grid max-w-5xl gap-6 px-4 py-6 sm:gap-10 sm:px-6 sm:py-8 lg:grid-cols-5">
               {/* LEFT — camera info */}
-              <div className="lg:col-span-3 space-y-8">
+              <div className="order-2 space-y-6 lg:order-1 lg:col-span-3 lg:space-y-8">
                 {/* Title & price */}
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.25em] text-yellow-400">
@@ -325,18 +366,49 @@ export default function KameraDetailPage() {
 
                 {/* Description / specs */}
                 {camera.deskripsi && (
-                  <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-                    <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-zinc-400">
+                  <div className="relative rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-6">
+                    <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-zinc-400 sm:mb-4">
                       Deskripsi &amp; Spesifikasi
                     </h2>
-                    <p className="whitespace-pre-line leading-7 text-zinc-300">
-                      {camera.deskripsi}
-                    </p>
+                    <div
+                      className={`overflow-hidden transition-[max-height] duration-300 ease-in-out md:max-h-none md:overflow-visible ${
+                        descriptionExpanded
+                          ? "max-h-[var(--description-height)]"
+                          : "max-h-28"
+                      }`}
+                      style={
+                        {
+                          "--description-height": `${descriptionHeight}px`,
+                        } as CSSProperties
+                      }
+                    >
+                      <p
+                        ref={descriptionRef}
+                        className="whitespace-pre-line leading-7 text-zinc-300"
+                      >
+                        {camera.deskripsi}
+                      </p>
+                    </div>
+                    {hasLongDescription && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDescriptionExpanded((expanded) => !expanded)
+                        }
+                        aria-expanded={descriptionExpanded}
+                        className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-yellow-400 transition hover:bg-yellow-400/10 hover:text-yellow-300 md:hidden"
+                      >
+                        {descriptionExpanded ? "Read Less" : "Read More"}
+                        <span aria-hidden="true">
+                          {descriptionExpanded ? "↑" : "↓"}
+                        </span>
+                      </button>
+                    )}
                   </div>
                 )}
 
                 {/* Sample photos */}
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-6">
                   <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-zinc-400">
                     Foto Contoh Hasil
                   </h2>
@@ -377,8 +449,8 @@ export default function KameraDetailPage() {
               </div>
 
               {/* RIGHT — booking panel */}
-              <div className="lg:col-span-2">
-                <div className="sticky top-24 rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+              <div className="order-1 lg:order-2 lg:col-span-2">
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 sm:p-6 lg:sticky lg:top-24">
                   <h2 className="text-lg font-bold">Mulai Sewa</h2>
                   <p className="mt-1 text-xs text-zinc-500">
                     Pilih tanggal untuk melihat harga dan ketersediaan.
