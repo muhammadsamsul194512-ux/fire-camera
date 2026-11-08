@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { usePengaturan } from "@/hooks/usePengaturan";
 
 interface KritikSaran {
   id: string;
@@ -12,9 +13,12 @@ interface KritikSaran {
 }
 
 export default function AdminKritikSaranPage() {
+  const pengaturan = usePengaturan();
   const [data, setData] = useState<KritikSaran[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const namaTokoAktif = pengaturan.nama_toko || "Snapiecam";
 
   async function fetchKritikSaran() {
     setLoading(true);
@@ -52,9 +56,9 @@ export default function AdminKritikSaranPage() {
       <div className="mx-auto max-w-5xl">
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold md:text-3xl">Daftar Kritik & Saran</h1>
+            <h1 className="text-2xl font-bold md:text-3xl">Daftar Kritik &amp; Saran</h1>
             <p className="mt-1 text-sm text-gray-400">
-              Kelola dan baca masukan dari pelanggan Snapiecam
+              Kelola dan baca masukan dari pelanggan {namaTokoAktif}
             </p>
           </div>
           <button
@@ -98,7 +102,7 @@ export default function AdminKritikSaranPage() {
                   </div>
 
                   <p className="text-sm text-gray-300 whitespace-pre-wrap rounded-xl bg-black/50 p-4 border border-gray-900">
-                    "{item.pesan}"
+                    &quot;{item.pesan}&quot;
                   </p>
                 </div>
 

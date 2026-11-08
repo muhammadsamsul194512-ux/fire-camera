@@ -63,13 +63,16 @@ export default function Home() {
     setOpenFaq(openFaq === index ? null : index);
   };
 
+  // Nama toko yang aktif (mengambil dari admin / database, dengan fallback)
+  const namaTokoAktif = pengaturan.nama_toko || "Snapiecam";
+
   return (
     <div className="flex min-h-screen flex-col overflow-x-hidden bg-zinc-950 text-white">
-      <Navbar namaToko={pengaturan.nama_toko} activeHref="/" />
+      <Navbar namaToko={namaTokoAktif} activeHref="/" />
 
       {/* HERO */}
       <section id="beranda" className="relative">
-        <div className="mx-auto grid w-full max-w-7xl items-center gap-10 px-5 py-12 sm:px-6 sm:py-16 md:grid-cols-2 md:gap-12 md:py-24 lg:py-28">
+        <div className="mx-auto grid w-full max-w-7xl items-center gap-6 px-5 pt-2 pb-8 sm:px-6 sm:pt-4 sm:pb-12 md:grid-cols-2 md:gap-10 md:py-12 lg:py-14">
           {/* Teks utama */}
           <div className="min-w-0">
             <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-yellow-400 sm:text-sm sm:tracking-[0.3em]">
@@ -85,7 +88,7 @@ export default function Home() {
 
             <p className="mt-5 max-w-xl text-base leading-7 text-zinc-400 sm:mt-6 sm:text-lg sm:leading-8">
               Abadikan setiap momen spesialmu bersama{" "}
-              {pengaturan.nama_toko || "Snapiecam"}. Pilih kamera yang kamu butuhkan
+              {namaTokoAktif}. Pilih kamera yang kamu butuhkan
               dan pesan dengan mudah.
             </p>
 
@@ -132,7 +135,7 @@ export default function Home() {
               {pengaturan.gambar_hero_url ? (
                 <img
                   src={pengaturan.gambar_hero_url}
-                  alt={`Hero ${pengaturan.nama_toko || "Snapiecam"}`}
+                  alt={`Hero ${namaTokoAktif}`}
                   className="h-full w-full object-cover"
                 />
               ) : (
@@ -142,7 +145,7 @@ export default function Home() {
                       📷
                     </div>
                     <p className="text-base font-semibold text-zinc-400">
-                      {pengaturan.nama_toko || "Snapiecam"}
+                      {namaTokoAktif}
                     </p>
                     <p className="mt-1 text-xs text-zinc-600">
                       Rental Kamera Profesional
@@ -155,7 +158,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ABOUT SNAPIECAM */}
+      {/* ABOUT US */}
       <section className="border-t border-zinc-900 bg-zinc-950">
         <div className="mx-auto max-w-7xl px-5 py-8 sm:px-6">
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 sm:p-8 flex flex-col md:flex-row items-center gap-6 md:gap-8">
@@ -163,7 +166,7 @@ export default function Home() {
             <div className="flex-shrink-0 flex items-center justify-center w-full md:w-auto">
               <img
                 src="/about-us.png"
-                alt="About Snapiecam Camera"
+                alt="About Us"
                 className="max-h-36 sm:max-h-44 w-auto object-contain rounded-xl"
               />
             </div>
@@ -174,7 +177,7 @@ export default function Home() {
             {/* Bagian Kanan: Judul & Teks About */}
             <div className="flex-1 text-center md:text-left">
               <h2 className="text-xl font-bold text-white sm:text-2xl">
-                About <span className="text-yellow-400">{pengaturan.nama_toko || "Snapiecam"}</span>
+                About <span className="text-yellow-400">Us</span>
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-zinc-400 sm:text-base">
                 Welcome to your premier destination for digital camera rentals. We believe that
@@ -241,7 +244,7 @@ export default function Home() {
             </h2>
 
             <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-zinc-500 sm:text-base sm:leading-7">
-              Agar pengalaman sewa kamera di {pengaturan.nama_toko || "Snapiecam"} lebih aman dan nyaman, perhatikan beberapa hal berikut:
+              Agar pengalaman sewa kamera di {namaTokoAktif} lebih aman dan nyaman, perhatikan beberapa hal berikut:
             </p>
           </div>
 
@@ -367,7 +370,7 @@ export default function Home() {
       </section>
 
       <Footer
-        namaToko={pengaturan.nama_toko}
+        namaToko={namaTokoAktif}
         whatsapp={pengaturan.whatsapp}
       />
     </div>

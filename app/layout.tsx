@@ -15,22 +15,30 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Snapiecam | Rental Kamera Profesional",
-  description: "Sewa kamera profesional dengan proses mudah, aman, dan cepat.",
-};
-
 // Mengambil data pengaturan dari Supabase secara server-side
 async function getSettings() {
   const { data } = await supabase.from("settings").select("*").single();
   return data;
 }
 
+// Generate dynamic metadata based on database settings
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getSettings();
+  const namaToko = settings?.nama_toko || "Snapiecam";
+  
+  return {
+    title: `${namaToko} | Rental Kamera Profesional`,
+    description: "Sewa kamera profesional dengan proses mudah, aman, dan cepat.",
+  };
+}
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const settings = await getSettings();
+  const namaToko = settings?.nama_toko || "Snapiecam";
+  
   // Ambil nomor WA dari database, berikan fallback jika kosong
   const rawPhone = settings?.whatsapp || "6285157831600";
-  // Format nomor untuk link WhatsApp (hilangkan karakter selain angka, pastikan diawali 62)
+  // Format nomor untuk link WhatsApp (hilangkan karakter selain angka)
   const formattedPhone = rawPhone.replace(/\D/g, "");
 
   return (
@@ -46,11 +54,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <footer className="border-t border-gray-800 bg-black py-6 text-center text-sm text-gray-400">
           <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 sm:flex-row">
             <div>
-              <p>© {new Date().getFullYear()} Snapiecam. All rights reserved.</p>
+              <p>© {new Date().getFullYear()} {namaToko}. All rights reserved.</p>
               <p className="mt-1 text-xs text-gray-500">
                 WhatsApp:{" "}
                 <a 
-                  href={`https://wa.me/${formattedPhone}?text=Halo%20Snapiecam,%20saya%20ingin%20tanya%20sewa%20kamera`}
+                  href={`https://wa.me/${formattedPhone}?text=Halo%20${encodeURIComponent(namaToko)},%20saya%20ingin%20tanya%20sewa%20kamera`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-gray-400 hover:text-yellow-400 transition underline"
@@ -70,7 +78,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 href="/kritik-saran" 
                 className="transition hover:text-yellow-400"
               >
-                Kritik & Saran
+                Kritik &amp; Saran
               </Link>
             </div>
           </div>

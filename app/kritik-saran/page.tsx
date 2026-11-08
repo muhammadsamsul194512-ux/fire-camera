@@ -3,15 +3,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { usePengaturan } from "@/hooks/usePengaturan";
 
 export default function KritikSaranPage() {
   const router = useRouter();
+  const pengaturan = usePengaturan();
   const [nama, setNama] = useState("");
   const [kontak, setKontak] = useState("");
   const [pesan, setPesan] = useState("");
   const [loading, setLoading] = useState(false);
   const [sukses, setSukses] = useState("");
   const [error, setError] = useState("");
+
+  const namaTokoAktif = pengaturan.nama_toko || "Snapiecam";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -45,7 +49,7 @@ export default function KritikSaranPage() {
       <div className="mx-auto max-w-2xl">
         <div className="mb-8 text-center">
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-yellow-400">
-            Snapiecam
+            {namaTokoAktif}
           </p>
           <h1 className="mt-2 text-3xl font-bold md:text-4xl">Kritik &amp; Saran</h1>
           <p className="mt-2 text-sm text-gray-400">

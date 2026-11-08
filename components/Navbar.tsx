@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 type NavbarProps = {
-  namaToko: string;
+  namaToko?: string;
   activeHref?: string;
 };
 
@@ -15,18 +15,22 @@ const navLinks = [
   { href: "/riwayat", label: "Cek Pesanan" },
 ];
 
-export default function Navbar({ namaToko, activeHref }: NavbarProps) {
+export default function Navbar({ activeHref }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <nav className="sticky top-0 z-40 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-        {/* LOGO */}
+        {/* LOGO GAMBAR (DIKECILKAN SEDIKIT) */}
         <Link
           href="/"
-          className="text-xl font-bold tracking-wider transition hover:text-yellow-400"
+          className="flex items-center transition opacity-90 hover:opacity-100 py-1"
         >
-          {namaToko || "Snapiecam"}
+          <img
+            src="/logo-fire.png" // Sesuaikan nama file logo Anda di folder public
+            alt="Logo"
+            className="h-28 w-auto object-contain sm:h-36"
+          />
         </Link>
 
         {/* DESKTOP LINKS */}
@@ -55,12 +59,10 @@ export default function Navbar({ namaToko, activeHref }: NavbarProps) {
           className="flex h-10 w-10 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-800 hover:text-white md:hidden"
         >
           {mobileOpen ? (
-            /* X icon */
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           ) : (
-            /* Hamburger icon */
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
