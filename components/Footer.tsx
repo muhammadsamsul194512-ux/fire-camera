@@ -8,7 +8,7 @@ export default function Footer({ namaToko, whatsapp }: FooterProps) {
     <footer className="border-t border-zinc-800 bg-black mt-auto">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-8 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="font-bold">{namaToko || "FIRE CAMERA"}</p>
+          <p className="font-bold">{namaToko || "Snapiecam"}</p>
           <p className="mt-1 text-sm text-zinc-500">
             Rental kamera profesional dan terpercaya.
           </p>
@@ -32,7 +32,7 @@ export default function Footer({ namaToko, whatsapp }: FooterProps) {
         </div>
 
         <p className="text-sm text-zinc-600">
-          © {new Date().getFullYear()} {namaToko || "FIRE CAMERA"}
+          © {new Date().getFullYear()} {namaToko || "Snapiecam"}
         </p>
       </div>
     </footer>

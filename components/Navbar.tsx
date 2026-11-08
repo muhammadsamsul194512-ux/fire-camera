@@ -26,7 +26,7 @@ export default function Navbar({ namaToko, activeHref }: NavbarProps) {
           href="/"
           className="text-xl font-bold tracking-wider transition hover:text-yellow-400"
         >
-          {namaToko || "FIRE CAMERA"}
+          {namaToko || "Snapiecam"}
         </Link>
 
         {/* DESKTOP LINKS */}

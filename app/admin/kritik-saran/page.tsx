@@ -54,7 +54,7 @@ export default function AdminKritikSaranPage() {
           <div>
             <h1 className="text-2xl font-bold md:text-3xl">Daftar Kritik & Saran</h1>
             <p className="mt-1 text-sm text-gray-400">
-              Kelola dan baca masukan dari pelanggan FIRE CAMERA
+              Kelola dan baca masukan dari pelanggan Snapiecam
             </p>
           </div>
           <button

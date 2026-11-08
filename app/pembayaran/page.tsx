@@ -87,7 +87,7 @@ export default function PembayaranLegacyPage() {
     <Suspense
       fallback={
         <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
-          <Navbar namaToko="FIRE CAMERA" />
+          <Navbar namaToko="Snapiecam" />
           <main className="flex flex-1 items-center justify-center px-6 py-20 text-center">
             <div className="max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-8">
               <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-zinc-600 border-t-yellow-400" />
@@ -96,7 +96,7 @@ export default function PembayaranLegacyPage() {
               </p>
             </div>
           </main>
-          <Footer namaToko="FIRE CAMERA" whatsapp="" />
+          <Footer namaToko="Snapiecam" whatsapp="" />
         </div>
       }
     >

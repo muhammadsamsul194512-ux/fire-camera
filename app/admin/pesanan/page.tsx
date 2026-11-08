@@ -12,7 +12,6 @@ import {
   filtersToApiParams,
   monthToDateRange,
   ORDER_STATUSES,
-  PAYMENT_STATUSES,
   SORT_OPTIONS,
   PAGE_SIZE_OPTIONS,
   DEFAULT_FILTERS,
@@ -223,26 +222,9 @@ const DATE_PRESETS_LABEL: Record<string, string> = {
 export default function AdminPesananPage() {
   const router = useRouter();
 
-  // ── Draft vs applied filters ──────────────────────────────────────────────
-  //
-  // "draft"   = what the filter UI currently shows.  Mutated freely as the
-  //             admin changes controls.  Does NOT trigger a fetch by itself.
-  //
-  // "applied" = the filter snapshot that was last sent to the API.  Changing
-  //             it is the only thing that triggers a new fetch.
-  //
-  // Pagination (page / pageSize) and sort are applied immediately without
-  // requiring the Apply button — they are output controls, not search criteria.
-  //
-  // There is no URL synchronization. Refreshing the page returns to defaults.
-  // This avoids the router.push → searchParams change → filters rememo →
-  // fetchOrders recreate → effect re-fire infinite loop that caused the
-  // previous loading regression.
-
   const [draft,   setDraft]   = useState<PesananFilters>({ ...DEFAULT_FILTERS });
   const [applied, setApplied] = useState<PesananFilters>({ ...DEFAULT_FILTERS });
 
-  // ── Data state ────────────────────────────────────────────────────────────
   const [pesanan,    setPesanan]    = useState<Pesanan[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1, pageSize: 25, total: 0, totalPages: null,
@@ -277,11 +259,6 @@ export default function AdminPesananPage() {
     void loadCameras();
   }, []);
 
-  // ── Fetch orders whenever `applied` changes ───────────────────────────────
-  //
-  // `applied` is a plain object stored in state.  React compares it by
-  // reference, so the effect only re-runs when setApplied() is called with a
-  // genuinely new snapshot — not on every render.
   const fetchRef = useRef(0);
 
   const fetchOrders = useCallback(async (filters: PesananFilters) => {
@@ -302,7 +279,7 @@ export default function AdminPesananPage() {
       });
       const result = await res.json() as { data?: Pesanan[]; pagination?: Pagination; error?: string };
 
-      if (fetchId !== fetchRef.current) return; // stale — a newer fetch has started
+      if (fetchId !== fetchRef.current) return;
 
       if (!res.ok) {
         setError(result.error ?? "Gagal mengambil data pesanan.");
@@ -321,15 +298,9 @@ export default function AdminPesananPage() {
   }, [router]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: effect triggers async fetch which calls setState
     void fetchOrders(applied);
-  // `fetchOrders` is stable (router never changes identity); `applied` is the
-  // sole trigger.  We intentionally omit `fetchOrders` from the deps array
-  // because including it would re-run on every render in Strict Mode.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applied]);
-
-  // ── Draft helpers ─────────────────────────────────────────────────────────
 
   function setDraftField<K extends keyof PesananFilters>(key: K, value: PesananFilters[K]) {
     setFilterError("");
@@ -358,8 +329,6 @@ export default function AdminPesananPage() {
     }));
   }
 
-  // ── Apply / Reset ─────────────────────────────────────────────────────────
-
   function applyFilters() {
     if ((draft.datePreset === "custom" || draft.datePreset === "exact") && !draft.dateStart) {
       setFilterError(draft.datePreset === "custom"
@@ -367,7 +336,6 @@ export default function AdminPesananPage() {
         : "Pilih tanggal tertentu.");
       return;
     }
-    // Validate custom date range before applying
     if (draft.datePreset === "custom" && draft.dateStart && draft.dateEnd
         && draft.dateEnd < draft.dateStart) {
       setFilterError("Tanggal akhir tidak boleh sebelum tanggal awal.");
@@ -375,7 +343,6 @@ export default function AdminPesananPage() {
     }
     setFilterError("");
     setError("");
-    // Always reset to page 1 when filter criteria change
     setApplied({ ...draft, page: 1 });
   }
 
@@ -384,8 +351,6 @@ export default function AdminPesananPage() {
     setDraft({ ...DEFAULT_FILTERS });
     setApplied({ ...DEFAULT_FILTERS });
   }
-
-  // ── Pagination / sort — immediate (no Apply needed) ───────────────────────
 
   function handlePageChange(page: number) {
     setFilterError("");
@@ -409,8 +374,6 @@ export default function AdminPesananPage() {
     setDraft(next);
   }
 
-  // ── Active filter pills (based on `applied`) ──────────────────────────────
-
   const activeCount = countActiveFilters(applied);
   const hasFilters  = activeCount > 0;
 
@@ -421,11 +384,8 @@ export default function AdminPesananPage() {
     setDraft(next);
   }
 
-  // ── Draft-vs-applied dirty check ──────────────────────────────────────────
-  // Show a visual hint on the Apply button when draft differs from applied.
-  // We compare only the filter criteria, not page/pageSize/sort.
   const CRITERIA_KEYS: (keyof PesananFilters)[] = [
-    "search", "status", "paymentStatus", "cameraId",
+    "search", "status", "cameraId",
     "datePreset", "dateField", "dateStart", "dateEnd",
   ];
   const isDirty = CRITERIA_KEYS.some((k) => draft[k] !== applied[k]);
@@ -518,7 +478,7 @@ export default function AdminPesananPage() {
             </button>
           </div>
 
-          {/* Row 2: Quick status pills (update draft only) */}
+          {/* Row 2: Quick status pills */}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -592,24 +552,6 @@ export default function AdminPesananPage() {
                 )}
               </div>
 
-              {/* Payment status filter */}
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Status Pembayaran
-                </p>
-                <select
-                  value={draft.paymentStatus}
-                  onChange={(e) => setDraftField("paymentStatus", e.target.value)}
-                  aria-label="Filter status pembayaran"
-                  className="w-full rounded-xl border border-gray-700 bg-black px-3 py-2 text-sm text-white outline-none focus:border-yellow-400"
-                >
-                  <option value="">Semua status pembayaran</option>
-                  {PAYMENT_STATUSES.map((s) => (
-                    <option key={s} value={s}>{getStatusLabel(s)}</option>
-                  ))}
-                </select>
-              </div>
-
               {/* Page size */}
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -655,7 +597,7 @@ export default function AdminPesananPage() {
             )}
           </div>
 
-          {/* Active filter pills (based on applied, not draft) */}
+          {/* Active filter pills */}
           {hasFilters && (
             <div className="flex flex-wrap gap-2">
               {applied.search && (
@@ -668,12 +610,6 @@ export default function AdminPesananPage() {
                 <ActiveFilterPill
                   label={`Status: ${getStatusLabel(applied.status)}`}
                   onRemove={() => removeAppliedFilter({ status: "" })}
-                />
-              )}
-              {applied.paymentStatus && (
-                <ActiveFilterPill
-                  label={`Pembayaran: ${getStatusLabel(applied.paymentStatus)}`}
-                  onRemove={() => removeAppliedFilter({ paymentStatus: "" })}
                 />
               )}
               {applied.cameraId && (

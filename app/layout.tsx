@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Fire Camera | Rental Kamera Profesional",
+  title: "Snapiecam | Rental Kamera Profesional",
   description: "Sewa kamera profesional dengan proses mudah, aman, dan cepat.",
 };
 
@@ -46,11 +46,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <footer className="border-t border-gray-800 bg-black py-6 text-center text-sm text-gray-400">
           <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 sm:flex-row">
             <div>
-              <p>© {new Date().getFullYear()} FIRE CAMERA. All rights reserved.</p>
+              <p>© {new Date().getFullYear()} Snapiecam. All rights reserved.</p>
               <p className="mt-1 text-xs text-gray-500">
                 WhatsApp:{" "}
                 <a 
-                  href={`https://wa.me/${formattedPhone}?text=Halo%20Fire%20Camera,%20saya%20ingin%20tanya%20sewa%20kamera`}
+                  href={`https://wa.me/${formattedPhone}?text=Halo%20Snapiecam,%20saya%20ingin%20tanya%20sewa%20kamera`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-gray-400 hover:text-yellow-400 transition underline"
