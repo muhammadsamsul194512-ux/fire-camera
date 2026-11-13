@@ -21,7 +21,7 @@ export default function Navbar({ activeHref }: NavbarProps) {
   return (
     <nav className="sticky top-0 z-40 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-        {/* LOGO GAMBAR (DIKECILKAN SEDIKIT) */}
+        {/* LOGO GAMBAR */}
         <Link
           href="/"
           className="flex items-center transition opacity-90 hover:opacity-100 py-1"
@@ -33,13 +33,13 @@ export default function Navbar({ activeHref }: NavbarProps) {
           />
         </Link>
 
-        {/* DESKTOP LINKS */}
-        <div className="hidden items-center gap-6 md:flex">
+        {/* DESKTOP LINKS (TEKS DIPERBESAR MENJADI text-base) */}
+        <div className="hidden items-center gap-8 md:flex">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className={`text-sm transition hover:text-yellow-400 ${
+              className={`text-base font-medium transition hover:text-yellow-400 ${
                 activeHref === link.href
                   ? "font-semibold text-yellow-400"
                   : "text-zinc-300"
@@ -70,7 +70,7 @@ export default function Navbar({ activeHref }: NavbarProps) {
         </button>
       </div>
 
-      {/* MOBILE DROPDOWN */}
+      {/* MOBILE DROPDOWN (TEKS DIPERBESAR MENJADI text-base) */}
       {mobileOpen && (
         <div className="border-t border-zinc-800 bg-zinc-950 px-6 pb-4 md:hidden">
           {navLinks.map((link) => (
@@ -78,7 +78,7 @@ export default function Navbar({ activeHref }: NavbarProps) {
               key={link.href}
               href={link.href}
               onClick={() => setMobileOpen(false)}
-              className={`block py-3 text-sm transition hover:text-yellow-400 ${
+              className={`block py-3 text-base transition hover:text-yellow-400 ${
                 activeHref === link.href
                   ? "font-semibold text-yellow-400"
                   : "text-zinc-300"
